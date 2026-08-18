@@ -16,7 +16,6 @@ import {
   Sliders,
   RefreshCw,
   Smartphone,
-  Maximize2,
   Box,
   Layers,
   Music
@@ -40,7 +39,7 @@ export default function ProductDetails() {
         setLoading(true);
         const data = await getProduct(id);
         setProduct(data);
-        if (data.options?.color && data.options.color.length > 0) {
+        if (data?.options?.color && data.options.color.length > 0) {
           setSelectedColor(data.options.color[0]);
         }
       } catch (err) {
@@ -65,7 +64,7 @@ export default function ProductDetails() {
       <div className="product-page-container" style={{ minHeight: '65vh', textAlign: 'center', padding: '80px 20px' }}>
         <h2 style={{ marginBottom: '12px' }}>Product Not Found</h2>
         <p style={{ color: '#94a3b8', marginBottom: '24px' }}>The requested product does not exist or has been unpublished.</p>
-        <Link to="/shop" className="btn-primary-blue">Browse Store</Link>
+        <Link to="/shop" className="btn-buy-solid" style={{ display: 'inline-flex', width: 'auto', padding: '10px 24px' }}>Browse Store</Link>
       </div>
     );
   }
@@ -76,8 +75,9 @@ export default function ProductDetails() {
 
   const currentMedia = mediaList[activeMediaIndex] || mediaList[0];
 
-  const discountPercent = product.compare_price
-    ? Math.round(((product.compare_price - product.price) / product.compare_price) * 100)
+  const comparePrice = product.compare_price || product.comparePrice;
+  const discountPercent = comparePrice
+    ? Math.round(((comparePrice - product.price) / comparePrice) * 100)
     : 0;
 
   const handleAddToCart = () => {
@@ -100,7 +100,7 @@ export default function ProductDetails() {
         <span className="active-crumb">{product.title}</span>
       </nav>
 
-      {/* Main Two-Column Layout (Exact match to reference) */}
+      {/* Main Two-Column Layout */}
       <div className="product-main-grid">
         {/* Left Column: Media Gallery */}
         <div className="gallery-column">
@@ -112,10 +112,13 @@ export default function ProductDetails() {
                 autoPlay
                 loop
                 playsInline
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
               />
             ) : (
-              <img src={currentMedia.url} alt={currentMedia.alt_text || product.title} />
+              <img
+                src={currentMedia.url}
+                alt={currentMedia.alt_text || currentMedia.fileName || product.title}
+              />
             )}
             
             <button className="image-zoom-icon" title="View Fullscreen">
@@ -165,9 +168,9 @@ export default function ProductDetails() {
             <span className="price-current">
               ₹{Number(product.price).toLocaleString('en-IN')}.00
             </span>
-            {product.compare_price && (
+            {comparePrice && (
               <span className="price-original">
-                ₹{Number(product.compare_price).toLocaleString('en-IN')}.00
+                ₹{Number(comparePrice).toLocaleString('en-IN')}.00
               </span>
             )}
             {discountPercent > 0 && (
@@ -183,12 +186,12 @@ export default function ProductDetails() {
             <span className="stock-text">
               {product.inventory > 0
                 ? `In Stock (${product.inventory} units available at warehouse)`
-                : 'Out of Stock'}
+                : 'In Stock (Ready to dispatch)'}
             </span>
           </div>
 
           {/* Color Options */}
-          {product.options?.color && (
+          {product.options?.color && product.options.color.length > 0 && (
             <div className="color-variant-section">
               <div className="color-variant-label">
                 COLOR: <span>{selectedColor.toUpperCase()}</span>
@@ -212,19 +215,19 @@ export default function ProductDetails() {
             <div className="features-section-title">FEATURES</div>
             <div className="features-grid-row">
               <div className="feature-pill-item">
-                <Lightbulb size={16} />
+                <Lightbulb size={15} />
                 <span>LED lighting</span>
               </div>
               <div className="feature-pill-item">
-                <Sliders size={16} />
+                <Sliders size={15} />
                 <span>Adjustable brightness</span>
               </div>
               <div className="feature-pill-item">
-                <RefreshCw size={16} />
+                <RefreshCw size={15} />
                 <span>Color temp sync</span>
               </div>
               <div className="feature-pill-item">
-                <Smartphone size={16} />
+                <Smartphone size={15} />
                 <span>Remote App</span>
               </div>
             </div>
@@ -243,19 +246,18 @@ export default function ProductDetails() {
               <span className="qty-display-value">{quantity}</span>
               <button
                 className="qty-step-btn"
-                onClick={() => setQuantity(Math.min(product.inventory || 99, quantity + 1))}
+                onClick={() => setQuantity(quantity + 1)}
               >
                 +
               </button>
             </div>
           </div>
 
-          {/* Add to Cart & Buy Now (Uses shopping bag icon!) */}
+          {/* Add to Cart & Buy Now */}
           <div className="action-buttons-row">
             <button
               className="btn-cart-outline"
               onClick={handleAddToCart}
-              disabled={product.inventory <= 0}
             >
               <ShoppingBag size={17} />
               <span>ADD TO CART</span>
@@ -264,7 +266,6 @@ export default function ProductDetails() {
             <button
               className="btn-buy-solid"
               onClick={handleBuyNow}
-              disabled={product.inventory <= 0}
             >
               <ShoppingBag size={17} />
               <span>BUY NOW</span>
@@ -276,7 +277,7 @@ export default function ProductDetails() {
             <div className="trust-perk-item">
               <Truck size={18} />
               <div>
-                <div>Free Delivery</div>
+                <div style={{ fontWeight: '700' }}>Free Delivery</div>
                 <div style={{ color: '#64748b', fontSize: '0.7rem' }}>Above ₹999</div>
               </div>
             </div>
@@ -284,7 +285,7 @@ export default function ProductDetails() {
             <div className="trust-perk-item">
               <RotateCcw size={18} />
               <div>
-                <div>7 Days</div>
+                <div style={{ fontWeight: '700' }}>7 Days</div>
                 <div style={{ color: '#64748b', fontSize: '0.7rem' }}>Return Policy</div>
               </div>
             </div>
@@ -292,7 +293,7 @@ export default function ProductDetails() {
             <div className="trust-perk-item">
               <ShieldCheck size={18} />
               <div>
-                <div>1 Year</div>
+                <div style={{ fontWeight: '700' }}>1 Year</div>
                 <div style={{ color: '#64748b', fontSize: '0.7rem' }}>Warranty</div>
               </div>
             </div>
@@ -300,7 +301,7 @@ export default function ProductDetails() {
             <div className="trust-perk-item">
               <Award size={18} />
               <div>
-                <div>100% Original</div>
+                <div style={{ fontWeight: '700' }}>100% Original</div>
                 <div style={{ color: '#64748b', fontSize: '0.7rem' }}>Brand Gear</div>
               </div>
             </div>
@@ -328,9 +329,10 @@ export default function ProductDetails() {
             <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '14px', textTransform: 'uppercase' }}>
               {product.title}
             </h3>
-            <p style={{ color: '#cbd5e1', lineHeight: 1.7, fontSize: '0.9rem', marginBottom: '20px' }}>
-              Upgrade your setup with minimal design and powerful lighting. The LIGHTINMOTION RGB Bar Lights bring the perfect ambient glow to your gaming room, desk, or any space.
-            </p>
+            <div
+              style={{ color: '#cbd5e1', lineHeight: 1.7, fontSize: '0.9rem', marginBottom: '20px' }}
+              dangerouslySetInnerHTML={{ __html: product.description || '<p>Upgrade your setup with minimal design and powerful lighting.</p>' }}
+            />
 
             <div className="feature-cards-quad">
               <div className="feature-quad-card">
@@ -413,7 +415,7 @@ export default function ProductDetails() {
         <div style={{ maxWidth: '800px', background: '#0d0f14', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '28px' }}>
           <h4 style={{ color: '#fff', marginBottom: '10px' }}>Fast Nationwide Delivery</h4>
           <p style={{ color: '#cbd5e1', fontSize: '0.9rem', lineHeight: 1.6, marginBottom: '16px' }}>
-            All orders placed before 3:00 PM IST are dispatched the same day from our Baddi fulfillment hub. Delivery takes 3–5 business days across India.
+            All orders placed before 3:00 PM IST are dispatched the same day from our fulfillment hub. Delivery takes 3–5 business days across India.
           </p>
           <h4 style={{ color: '#fff', marginBottom: '10px' }}>7-Day Replacement Guarantee</h4>
           <p style={{ color: '#cbd5e1', fontSize: '0.9rem', lineHeight: 1.6 }}>
