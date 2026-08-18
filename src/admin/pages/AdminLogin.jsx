@@ -1,6 +1,6 @@
 // src/admin/pages/AdminLogin.jsx
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { adminLogin } from '../../api';
 import { ShieldCheck, ArrowRight, Lock, Mail } from 'lucide-react';
 
@@ -10,6 +10,7 @@ export default function AdminLogin() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -20,7 +21,8 @@ export default function AdminLogin() {
       const res = await adminLogin(email.trim(), password.trim());
       localStorage.setItem('lim_admin_token', res.token);
       localStorage.setItem('lim_admin_user', JSON.stringify(res.user));
-      navigate('/admin');
+      const targetDestination = location.state?.from?.pathname || '/admin';
+      navigate(targetDestination);
     } catch (err) {
       setError(err.message || 'Invalid admin credentials. Please verify your email and password.');
     } finally {

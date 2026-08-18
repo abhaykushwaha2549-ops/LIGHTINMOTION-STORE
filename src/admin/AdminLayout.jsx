@@ -1,6 +1,6 @@
 // src/admin/AdminLayout.jsx
-import React, { useEffect } from 'react';
-import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import React from 'react';
+import { Outlet, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import {
   Home,
   ShoppingBag,
@@ -23,14 +23,10 @@ export default function AdminLayout() {
 
   const token = localStorage.getItem('lim_admin_token');
 
-  // Guard: Protect admin routes
-  useEffect(() => {
-    if (!token && location.pathname !== '/admin/login') {
-      navigate('/admin/login');
-    }
-  }, [token, location.pathname, navigate]);
-
-  if (!token) return null;
+  // If not logged in, redirect directly to admin login page
+  if (!token) {
+    return <Navigate to="/admin/login" replace state={{ from: location }} />;
+  }
 
   const handleLogout = () => {
     localStorage.removeItem('lim_admin_token');
