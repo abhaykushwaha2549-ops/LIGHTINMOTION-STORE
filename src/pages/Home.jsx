@@ -108,12 +108,12 @@ export default function Home() {
             </Link>
           </div>
 
-          {/* 5-Column Products Horizontal Grid */}
+          {/* Products Grid */}
           {loading ? (
             <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>Loading products...</div>
           ) : (
             <div className="exact-five-col-grid">
-              {products.slice(0, 5).map((p) => {
+              {products.map((p) => {
                 const primaryMedia = p.media?.[0] || {};
                 return (
                   <div

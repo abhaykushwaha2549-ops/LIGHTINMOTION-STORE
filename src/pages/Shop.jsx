@@ -1,12 +1,12 @@
 // src/pages/Shop.jsx
 import React, { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { getProducts } from '../api';
 import { Play } from 'lucide-react';
 
 export default function Shop() {
   const [products, setProducts] = useState([]);
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [sortBy, setSortBy] = useState('Featured');
   const [loading, setLoading] = useState(true);
@@ -14,83 +14,14 @@ export default function Shop() {
 
   const searchQuery = searchParams.get('search') || '';
 
-  // 5 Official Default Products with Exact Reference Media & Specs
-  const defaultCatalog = [
-    {
-      id: 'prod_barlights',
-      title: 'Barlights',
-      price: 1899,
-      compare_price: 2499,
-      category_id: 'Light Ropes & Strings in Lighting',
-      hasVideo: true,
-      media: [{
-        url: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=800&q=80',
-        type: 'image'
-      }]
-    },
-    {
-      id: 'prod_flex_strip',
-      title: 'LIGHTINMOTION Smart RGB Flex Strip',
-      price: 1499,
-      compare_price: 1999,
-      category_id: 'LED Strip Lights',
-      hasVideo: true,
-      media: [{
-        url: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=800&q=80',
-        type: 'image'
-      }]
-    },
-    {
-      id: 'prod_monitor_backlight',
-      title: 'Monitor Backlight',
-      price: 1599,
-      compare_price: 1899,
-      category_id: 'Monitor Lighting',
-      hasVideo: false,
-      media: [{
-        url: 'https://images.unsplash.com/photo-1593305841991-05c297ba4575?auto=format&fit=crop&w=800&q=80',
-        type: 'image'
-      }]
-    },
-    {
-      id: 'prod_tv_backlight',
-      title: 'TV Backlight',
-      price: 1599,
-      compare_price: 3549,
-      category_id: 'TV & Home Cinema',
-      hasVideo: false,
-      media: [{
-        url: 'https://images.unsplash.com/photo-1593784991095-a205069470b6?auto=format&fit=crop&w=800&q=80',
-        type: 'image'
-      }]
-    },
-    {
-      id: 'prod_lamp_light',
-      title: 'Lamp Light',
-      price: 1899,
-      compare_price: 2599,
-      category_id: 'Floor & Table Lamps',
-      hasVideo: false,
-      media: [{
-        url: 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&w=800&q=80',
-        type: 'image'
-      }]
-    }
-  ];
-
   useEffect(() => {
     async function fetchProducts() {
       setLoading(true);
       try {
         const data = await getProducts();
-        if (Array.isArray(data) && data.length > 0) {
-          setProducts(data);
-        } else {
-          setProducts(defaultCatalog);
-        }
+        setProducts(data || []);
       } catch (err) {
         console.error('Fetch products error:', err);
-        setProducts(defaultCatalog);
       } finally {
         setLoading(false);
       }
@@ -169,6 +100,8 @@ export default function Shop() {
         {/* Products 4-Column Grid */}
         {loading ? (
           <div className="shop-loading-state">Loading hardware catalog...</div>
+        ) : filtered.length === 0 ? (
+          <div className="shop-loading-state">No products found matching your filter.</div>
         ) : (
           <div className="shop-products-grid">
             {filtered.map((p) => {

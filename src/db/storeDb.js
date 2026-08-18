@@ -2,12 +2,12 @@
 // Client-side IndexedDB persistence for products, media blobs, settings, and orders
 
 const DB_NAME = 'LightinmotionDB';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 // Default Seed Products matching reference images exactly
 const DEFAULT_PRODUCTS = [
   {
-    id: 'prod-barlights',
+    id: 'prod_barlights',
     title: 'Barlights',
     handle: 'barlights',
     description: `<h3>LIGHTINMOTION RGB Bar Lights</h3>
@@ -26,13 +26,15 @@ const DEFAULT_PRODUCTS = [
   <li>Smooth diffused lighting for premium aesthetics</li>
 </ul>`,
     price: 1899.00,
+    compare_price: 2499.00,
     comparePrice: 2499.00,
     status: 'Active',
     vendor: 'LIGHTINMOTION',
-    category: 'Light Ropes & Strings in Lighting',
+    category_id: 'Light Ropes & Strings in Lighting',
     collections: ['Home page', 'Ambient Lighting', 'Best Sellers'],
     tags: ['RGB', 'Desk Setup', 'Ambient', 'Smart Light'],
     inventory: 8,
+    low_stock_threshold: 3,
     location: 'Main Warehouse',
     sku: 'LIM-BAR-001',
     barcode: '890123456701',
@@ -65,7 +67,7 @@ const DEFAULT_PRODUCTS = [
     ]
   },
   {
-    id: 'prod-rgb-flex-strip',
+    id: 'prod_flex_strip',
     title: 'LIGHTINMOTION Smart RGB Flex Strip',
     handle: 'smart-rgb-flex-strip',
     description: `<h3>Smart Addressable RGB Neon Flex Strip</h3>
@@ -77,13 +79,15 @@ const DEFAULT_PRODUCTS = [
   <li>IP67 Waterproof silicone tubing</li>
 </ul>`,
     price: 1499.00,
-    comparePrice: null,
+    compare_price: 1999.00,
+    comparePrice: 1999.00,
     status: 'Active',
     vendor: 'LIGHTINMOTION',
-    category: 'LED Strip Lights',
+    category_id: 'LED Strip Lights',
     collections: ['Home page', 'Flex Strips'],
     tags: ['Strip', 'Neon', 'Flex', 'Smart App'],
     inventory: 15,
+    low_stock_threshold: 3,
     location: 'Main Warehouse',
     sku: 'LIM-STRP-002',
     barcode: '890123456702',
@@ -110,7 +114,7 @@ const DEFAULT_PRODUCTS = [
     ]
   },
   {
-    id: 'prod-monitor-backlight',
+    id: 'prod_monitor_backlight',
     title: 'Monitor Backlight',
     handle: 'monitor-backlight',
     description: `<h3>Immersive Screen-Mirror Monitor RGB Light</h3>
@@ -121,13 +125,15 @@ const DEFAULT_PRODUCTS = [
   <li>Easy clip-on corner mounts</li>
 </ul>`,
     price: 1599.00,
+    compare_price: 1899.00,
     comparePrice: 1899.00,
     status: 'Active',
     vendor: 'LIGHTINMOTION',
-    category: 'Monitor Lighting',
+    category_id: 'Monitor Lighting',
     collections: ['Home page', 'PC Gaming'],
     tags: ['Monitor', 'Backlight', 'Screen Sync'],
     inventory: 12,
+    low_stock_threshold: 3,
     location: 'Main Warehouse',
     sku: 'LIM-MON-003',
     barcode: '890123456703',
@@ -148,7 +154,7 @@ const DEFAULT_PRODUCTS = [
     ]
   },
   {
-    id: 'prod-tv-backlight',
+    id: 'prod_tv_backlight',
     title: 'TV Backlight',
     handle: 'tv-backlight',
     description: `<h3>Camera-Immersion TV Backlight System (55-75")</h3>
@@ -159,13 +165,15 @@ const DEFAULT_PRODUCTS = [
   <li>Movie, Gaming, and Music synchronization modes</li>
 </ul>`,
     price: 1599.00,
+    compare_price: 3549.00,
     comparePrice: 3549.00,
     status: 'Active',
     vendor: 'LIGHTINMOTION',
-    category: 'TV & Home Cinema',
+    category_id: 'TV & Home Cinema',
     collections: ['Home page', 'Living Room'],
     tags: ['TV', 'Cinema', 'Camera Sync'],
     inventory: 20,
+    low_stock_threshold: 3,
     location: 'Main Warehouse',
     sku: 'LIM-TV-004',
     barcode: '890123456704',
@@ -186,7 +194,7 @@ const DEFAULT_PRODUCTS = [
     ]
   },
   {
-    id: 'prod-lamp-light',
+    id: 'prod_lamp_light',
     title: 'Lamp Light',
     handle: 'lamp-light',
     description: `<h3>Nordic Minimalist RGB Corner Atmosphere Floor Lamp</h3>
@@ -197,13 +205,15 @@ const DEFAULT_PRODUCTS = [
   <li>RF Remote control + Smartphone App</li>
 </ul>`,
     price: 1899.00,
+    compare_price: 2599.00,
     comparePrice: 2599.00,
     status: 'Active',
     vendor: 'LIGHTINMOTION',
-    category: 'Floor & Table Lamps',
+    category_id: 'Floor & Table Lamps',
     collections: ['Home page', 'Living Room', 'Ambient Lighting'],
     tags: ['Lamp', 'Corner Light', 'Floor Lamp'],
     inventory: 5,
+    low_stock_threshold: 2,
     location: 'Main Warehouse',
     sku: 'LIM-LMP-005',
     barcode: '890123456705',
@@ -308,11 +318,18 @@ export async function initializeDatabase() {
 export async function getAllProducts() {
   await initializeDatabase();
   const db = await openDatabase();
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const tx = db.transaction('products', 'readonly');
     const store = tx.objectStore('products');
     const req = store.getAll();
-    req.onsuccess = () => resolve(req.result || DEFAULT_PRODUCTS);
+    req.onsuccess = () => {
+      const prods = req.result || [];
+      if (prods.length === 0) {
+        resolve(DEFAULT_PRODUCTS);
+      } else {
+        resolve(prods);
+      }
+    };
     req.onerror = () => resolve(DEFAULT_PRODUCTS);
   });
 }
@@ -320,31 +337,54 @@ export async function getAllProducts() {
 export async function getProductById(id) {
   await initializeDatabase();
   const db = await openDatabase();
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const tx = db.transaction('products', 'readonly');
     const store = tx.objectStore('products');
     const req = store.get(id);
     req.onsuccess = () => {
       if (req.result) return resolve(req.result);
-      const fallback = DEFAULT_PRODUCTS.find((p) => p.id === id || p.handle === id);
+      const fallback = DEFAULT_PRODUCTS.find((p) => p.id === id || p.handle === id || p.slug === id);
       resolve(fallback || null);
     };
-    req.onerror = () => resolve(null);
+    req.onerror = () => {
+      const fallback = DEFAULT_PRODUCTS.find((p) => p.id === id || p.handle === id || p.slug === id);
+      resolve(fallback || null);
+    };
   });
 }
 
 export async function saveProduct(product) {
+  await initializeDatabase();
   const db = await openDatabase();
+
+  const generatedId = product.id || ('prod_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5));
+  const productToSave = {
+    ...product,
+    id: generatedId,
+    title: product.title || 'Untitled Product',
+    slug: product.slug || (product.title ? product.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') : generatedId),
+    price: Number(product.price) || 0,
+    compare_price: product.compare_price ? Number(product.compare_price) : (product.comparePrice ? Number(product.comparePrice) : null),
+    comparePrice: product.compare_price ? Number(product.compare_price) : (product.comparePrice ? Number(product.comparePrice) : null),
+    inventory: Number(product.inventory) || 0,
+    low_stock_threshold: Number(product.low_stock_threshold) || 3,
+    status: product.status || 'Active',
+    vendor: product.vendor || 'LIGHTINMOTION',
+    category_id: product.category_id || 'Light Ropes & Strings in Lighting',
+    media: Array.isArray(product.media) ? product.media : []
+  };
+
   return new Promise((resolve, reject) => {
     const tx = db.transaction('products', 'readwrite');
     const store = tx.objectStore('products');
-    const req = store.put(product);
-    req.onsuccess = () => resolve(product);
+    const req = store.put(productToSave);
+    req.onsuccess = () => resolve(productToSave);
     req.onerror = (err) => reject(err);
   });
 }
 
 export async function deleteProduct(id) {
+  await initializeDatabase();
   const db = await openDatabase();
   return new Promise((resolve, reject) => {
     const tx = db.transaction('products', 'readwrite');
@@ -370,6 +410,7 @@ export async function getSettings() {
 }
 
 export async function saveSettings(settingsData) {
+  await initializeDatabase();
   const db = await openDatabase();
   return new Promise((resolve, reject) => {
     const tx = db.transaction('settings', 'readwrite');
@@ -428,6 +469,7 @@ export async function getMediaBlobUrl(blobId) {
 }
 
 export async function createOrder(order) {
+  await initializeDatabase();
   const db = await openDatabase();
   const newOrder = {
     ...order,
@@ -455,57 +497,4 @@ export async function getAllOrders() {
     req.onsuccess = () => resolve(req.result || []);
     req.onerror = () => resolve([]);
   });
-}
-
-export async function exportDatabaseBackup() {
-  const products = await getAllProducts();
-  const settings = await getSettings();
-  const orders = await getAllOrders();
-  
-  const backup = {
-    appName: 'LIGHTINMOTION E-Commerce',
-    version: '1.0',
-    exportDate: new Date().toISOString(),
-    products,
-    settings,
-    orders
-  };
-  
-  return JSON.stringify(backup, null, 2);
-}
-
-export async function importDatabaseBackup(jsonString) {
-  const data = JSON.parse(jsonString);
-  const db = await openDatabase();
-
-  if (Array.isArray(data.products)) {
-    const tx = db.transaction('products', 'readwrite');
-    const store = tx.objectStore('products');
-    await new Promise((res) => {
-      store.clear().onsuccess = res;
-    });
-    for (const p of data.products) {
-      store.put(p);
-    }
-  }
-
-  if (data.settings) {
-    const tx = db.transaction('settings', 'readwrite');
-    const store = tx.objectStore('settings');
-    store.put({ key: 'main_settings', value: data.settings });
-  }
-
-  return true;
-}
-
-export async function resetDatabaseToDefaults() {
-  const db = await openDatabase();
-  const tx = db.transaction(['products', 'settings', 'orders', 'blobs'], 'readwrite');
-  tx.objectStore('products').clear();
-  tx.objectStore('settings').clear();
-  tx.objectStore('orders').clear();
-  tx.objectStore('blobs').clear();
-  await new Promise((res) => { tx.oncomplete = res; });
-  await initializeDatabase();
-  return true;
 }
