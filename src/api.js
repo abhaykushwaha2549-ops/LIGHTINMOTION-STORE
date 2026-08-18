@@ -50,7 +50,6 @@ export const getProducts = async (params = {}) => {
     const query = new URLSearchParams(params).toString();
     const data = await apiFetch(`/api/products${query ? `?${query}` : ''}`);
     if (Array.isArray(data) && data.length > 0) {
-      // Also cache in local DB
       data.forEach((p) => localSaveProduct(p).catch(() => {}));
       return data;
     }
@@ -98,7 +97,6 @@ export const adminCreateProduct = async (data) => {
     console.warn('Backend create failed, saving to local store:', err);
   }
 
-  // Always persist to local client DB so product appears immediately everywhere
   const saved = await localSaveProduct(created || data);
   return saved;
 };
@@ -153,7 +151,7 @@ export const validateDiscount = async (code, subtotal, customerEmail) => {
       method: 'POST',
       body: JSON.stringify({ code: cleanCode, subtotal, customerEmail })
     });
-  } catch (err) {
+  } catch {
     if (cleanCode === 'WELCOME10') {
       const discountAmount = Math.round((subtotal * 0.1) * 100) / 100;
       return {
@@ -227,35 +225,45 @@ export const adminDeleteDiscount = async (id) => {
 
 // ---------------- ORDERS API ----------------
 export const createOrder = async (orderPayload) => {
+  let serverResult = null;
   try {
-    return await apiFetch('/api/orders/create', {
+    serverResult = await apiFetch('/api/orders/create', {
       method: 'POST',
       body: JSON.stringify(orderPayload)
     });
   } catch (err) {
-    const orderNumber = 'LIM-' + Math.floor(100000 + Math.random() * 900000);
-    const subtotal = orderPayload.items.reduce((acc, i) => acc + (i.price || 1899) * i.quantity, 0);
-    const discount = orderPayload.discountCode === 'WELCOME10' ? subtotal * 0.1 : 0;
-    const shipping = subtotal >= 999 ? 0 : 99;
-    const total = subtotal - discount + shipping;
-
-    const fallbackOrder = {
-      id: 'ord_' + Date.now(),
-      order_number: orderNumber,
-      customer_name: orderPayload.customer?.name || 'Customer',
-      customer_email: orderPayload.customer?.email || '',
-      customer_phone: orderPayload.customer?.phone || '',
-      shipping_address: orderPayload.customer?.address || '',
-      total_amount: total,
-      payment_method: orderPayload.paymentMethod || 'UPI',
-      payment_status: 'Paid',
-      order_status: 'Confirmed',
-      created_at: new Date().toISOString()
-    };
-
-    await localAddOrder(fallbackOrder);
-    return { order: fallbackOrder, items: orderPayload.items };
+    console.warn('Server create order error:', err);
   }
+
+  const orderNumber = serverResult?.order?.order_number || ('LIM-' + Math.floor(100000 + Math.random() * 900000));
+  const subtotal = orderPayload.items.reduce((acc, i) => acc + (Number(i.price) || 1899) * (Number(i.quantity) || 1), 0);
+  const discount = orderPayload.discountCode === 'WELCOME10' ? subtotal * 0.1 : 0;
+  const shipping = subtotal >= 999 ? 0 : 99;
+  const total = serverResult?.order?.total_amount || (subtotal - discount + shipping);
+
+  const fallbackOrder = {
+    id: serverResult?.order?.id || ('ord_' + Date.now()),
+    order_number: orderNumber,
+    customer_name: orderPayload.customer?.name || 'Customer',
+    customer_email: orderPayload.customer?.email || '',
+    customer_phone: orderPayload.customer?.phone || '',
+    shipping_address: orderPayload.customer?.address || '',
+    city: orderPayload.customer?.city || '',
+    state: orderPayload.customer?.state || '',
+    pincode: orderPayload.customer?.pincode || '',
+    country: orderPayload.customer?.country || 'India',
+    total_amount: total,
+    discount_code: orderPayload.discountCode || null,
+    discount_amount: discount,
+    payment_method: orderPayload.paymentMethod || 'UPI',
+    payment_status: orderPayload.paymentMethod === 'COD' ? 'Pending' : 'Paid',
+    order_status: 'Confirmed',
+    created_at: new Date().toISOString(),
+    items: orderPayload.items || []
+  };
+
+  const saved = await localAddOrder(serverResult?.order || fallbackOrder);
+  return { order: saved, items: orderPayload.items };
 };
 
 export const trackOrder = async (orderNumber) => {
@@ -275,10 +283,17 @@ export const trackOrder = async (orderNumber) => {
 
 export const adminGetOrders = async () => {
   try {
-    return await apiFetch('/api/orders/admin/all', { isAdmin: true });
-  } catch {
-    return await localGetOrders();
+    const data = await apiFetch('/api/orders/admin/all', { isAdmin: true });
+    if (Array.isArray(data) && data.length > 0) {
+      for (const ord of data) {
+        await localAddOrder(ord).catch(() => {});
+      }
+      return data;
+    }
+  } catch (err) {
+    console.warn('adminGetOrders server fallback:', err);
   }
+  return await localGetOrders();
 };
 
 export const adminGetOrder = async (id) => {
@@ -286,37 +301,56 @@ export const adminGetOrder = async (id) => {
     return await apiFetch(`/api/orders/admin/${id}`, { isAdmin: true });
   } catch {
     const orders = await localGetOrders();
-    const ord = orders.find((o) => o.id === id);
+    const ord = orders.find((o) => o.id === id || o.order_number === id);
     return {
       order: ord || {},
       items: ord?.items || [],
-      timeline: [{ id: '1', status: 'Confirmed', message: 'Order placed.', created_at: new Date().toISOString() }]
+      timeline: [{ id: '1', status: 'Confirmed', message: 'Order placed.', created_at: ord?.created_at || new Date().toISOString() }]
     };
   }
 };
 
 export const adminUpdateOrderStatus = async (id, statusData) => {
   try {
-    return await apiFetch(`/api/orders/admin/${id}/status`, {
+    await apiFetch(`/api/orders/admin/${id}/status`, {
       method: 'PUT',
       body: JSON.stringify(statusData),
       isAdmin: true
     });
-  } catch {
-    return { success: true };
+  } catch (err) {
+    console.warn('Server status update error:', err);
   }
+
+  const orders = await localGetOrders();
+  const ord = orders.find((o) => o.id === id || o.order_number === id);
+  if (ord) {
+    ord.order_status = statusData.order_status;
+    await localAddOrder(ord);
+  }
+  return { success: true };
 };
 
 export const adminUpdateTracking = async (id, trackingData) => {
   try {
-    return await apiFetch(`/api/orders/admin/${id}/tracking`, {
+    await apiFetch(`/api/orders/admin/${id}/tracking`, {
       method: 'PUT',
       body: JSON.stringify(trackingData),
       isAdmin: true
     });
-  } catch {
-    return { success: true };
+  } catch (err) {
+    console.warn('Server tracking update error:', err);
   }
+
+  const orders = await localGetOrders();
+  const ord = orders.find((o) => o.id === id || o.order_number === id);
+  if (ord) {
+    ord.tracking_number = trackingData.tracking_number;
+    ord.carrier = trackingData.carrier;
+    ord.tracking_url = trackingData.tracking_url;
+    ord.order_status = 'Shipped';
+    await localAddOrder(ord);
+  }
+  return { success: true };
 };
 
 // ---------------- AUTH API ----------------
@@ -399,9 +433,32 @@ export const adminGetCustomers = async () => {
   try {
     return await apiFetch('/api/customers/admin/all', { isAdmin: true });
   } catch {
-    return [
-      { id: 'c1', name: 'Demo Customer', email: 'customer@example.com', phone: '+91 98765 43210', total_spent: 3418, orders_count: 1, created_at: new Date().toISOString() }
-    ];
+    const orders = await localGetOrders();
+    const customerMap = new Map();
+    orders.forEach((o) => {
+      const email = o.customer_email || 'guest@example.com';
+      if (!customerMap.has(email)) {
+        customerMap.set(email, {
+          id: 'cust_' + email,
+          name: o.customer_name || 'Customer',
+          email,
+          phone: o.customer_phone || '',
+          total_spent: 0,
+          orders_count: 0,
+          created_at: o.created_at
+        });
+      }
+      const c = customerMap.get(email);
+      c.total_spent += Number(o.total_amount) || 0;
+      c.orders_count += 1;
+    });
+
+    if (customerMap.size === 0) {
+      return [
+        { id: 'c1', name: 'Demo Customer', email: 'customer@example.com', phone: '+91 98765 43210', total_spent: 3418, orders_count: 1, created_at: new Date().toISOString() }
+      ];
+    }
+    return Array.from(customerMap.values());
   }
 };
 
@@ -421,22 +478,31 @@ export const adminGetAnalytics = async (range = '30d') => {
     const orders = await localGetOrders();
     const products = await localGetProducts();
     const totalSales = orders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+    const today = new Date().toISOString().split('T')[0];
+    const todayOrders = orders.filter((o) => (o.created_at || '').startsWith(today));
+    const todaySales = todayOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+
     return {
       summary: {
         totalSales,
-        todaySales: 0,
-        ordersToday: 0,
+        todaySales,
+        ordersToday: todayOrders.length,
         totalOrders: orders.length,
-        pendingOrders: orders.filter((o) => o.order_status === 'Confirmed').length,
+        pendingOrders: orders.filter((o) => o.order_status === 'Confirmed' || o.order_status === 'Processing').length,
         completedOrders: orders.filter((o) => o.order_status === 'Delivered').length,
-        cancelledOrders: 0,
-        totalCustomers: 1,
+        cancelledOrders: orders.filter((o) => o.order_status === 'Cancelled').length,
+        totalCustomers: Math.max(1, new Set(orders.map((o) => o.customer_email)).size),
         totalProducts: products.length,
         activeDiscounts: 2,
-        averageOrderValue: orders.length > 0 ? (totalSales / orders.length).toFixed(2) : 0
+        averageOrderValue: orders.length > 0 ? Math.round(totalSales / orders.length) : 0
       },
       lowStockProducts: products.filter((p) => p.inventory <= 3),
-      topProducts: products.slice(0, 5),
+      topProducts: products.slice(0, 5).map((p) => ({
+        product_title: p.title,
+        image_url: p.media?.[0]?.url,
+        units_sold: 4,
+        total_revenue: p.price * 4
+      })),
       salesOverTime: []
     };
   }

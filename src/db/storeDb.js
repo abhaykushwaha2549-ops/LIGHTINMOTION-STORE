@@ -1,8 +1,8 @@
 // src/db/storeDb.js
-// Client-side IndexedDB persistence for products, media blobs, settings, and orders
+// Client-side IndexedDB & LocalStorage persistence for products, media blobs, settings, and orders
 
 const DB_NAME = 'LightinmotionDB';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 // Default Seed Products matching reference images exactly
 const DEFAULT_PRODUCTS = [
@@ -421,62 +421,39 @@ export async function saveSettings(settingsData) {
   });
 }
 
-export async function storeMediaBlob(blobFile, type = 'image') {
-  const db = await openDatabase();
-  const id = 'blob_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
-  
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction('blobs', 'readwrite');
-    const store = tx.objectStore('blobs');
-    const blobRecord = {
-      id,
-      type,
-      fileName: blobFile.name,
-      mimeType: blobFile.type,
-      blob: blobFile,
-      createdAt: Date.now()
-    };
-    const req = store.put(blobRecord);
-    req.onsuccess = () => {
-      const objectUrl = URL.createObjectURL(blobFile);
-      resolve({
-        id,
-        type,
-        url: objectUrl,
-        blobId: id,
-        fileName: blobFile.name
-      });
-    };
-    req.onerror = (err) => reject(err);
-  });
-}
-
-export async function getMediaBlobUrl(blobId) {
-  const db = await openDatabase();
-  return new Promise((resolve) => {
-    const tx = db.transaction('blobs', 'readonly');
-    const store = tx.objectStore('blobs');
-    const req = store.get(blobId);
-    req.onsuccess = () => {
-      if (req.result && req.result.blob) {
-        resolve(URL.createObjectURL(req.result.blob));
-      } else {
-        resolve(null);
-      }
-    };
-    req.onerror = () => resolve(null);
-  });
-}
-
 export async function createOrder(order) {
   await initializeDatabase();
   const db = await openDatabase();
   const newOrder = {
     ...order,
-    id: 'ORD-' + Math.floor(100000 + Math.random() * 900000),
-    createdAt: new Date().toISOString(),
-    status: 'Paid / Processing'
+    id: order.id || ('ord_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5)),
+    order_number: order.order_number || ('LIM-' + Math.floor(100000 + Math.random() * 900000)),
+    customer_name: order.customer_name || order.customer?.name || 'Customer',
+    customer_email: order.customer_email || order.customer?.email || '',
+    customer_phone: order.customer_phone || order.customer?.phone || '',
+    shipping_address: order.shipping_address || order.customer?.address || '',
+    total_amount: Number(order.total_amount) || 0,
+    payment_method: order.payment_method || 'UPI',
+    payment_status: order.payment_status || 'Paid',
+    order_status: order.order_status || 'Confirmed',
+    created_at: order.created_at || new Date().toISOString(),
+    items: Array.isArray(order.items) ? order.items : []
   };
+
+  // Sync with LocalStorage for instant cross-tab / cross-window persistence
+  try {
+    const raw = localStorage.getItem('lim_offline_orders');
+    const list = raw ? JSON.parse(raw) : [];
+    const index = list.findIndex((o) => o.id === newOrder.id || o.order_number === newOrder.order_number);
+    if (index >= 0) {
+      list[index] = newOrder;
+    } else {
+      list.unshift(newOrder);
+    }
+    localStorage.setItem('lim_offline_orders', JSON.stringify(list));
+  } catch (e) {
+    console.error('LocalStorage order sync error:', e);
+  }
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction('orders', 'readwrite');
@@ -490,11 +467,23 @@ export async function createOrder(order) {
 export async function getAllOrders() {
   await initializeDatabase();
   const db = await openDatabase();
-  return new Promise((resolve) => {
+  const idbOrders = await new Promise((resolve) => {
     const tx = db.transaction('orders', 'readonly');
     const store = tx.objectStore('orders');
     const req = store.getAll();
     req.onsuccess = () => resolve(req.result || []);
     req.onerror = () => resolve([]);
   });
+
+  let lsOrders = [];
+  try {
+    const raw = localStorage.getItem('lim_offline_orders');
+    if (raw) lsOrders = JSON.parse(raw);
+  } catch (e) {}
+
+  const orderMap = new Map();
+  lsOrders.forEach((o) => orderMap.set(o.id || o.order_number, o));
+  idbOrders.forEach((o) => orderMap.set(o.id || o.order_number, o));
+
+  return Array.from(orderMap.values()).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
 }
