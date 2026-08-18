@@ -1,12 +1,12 @@
 // src/admin/pages/AdminLogin.jsx
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { adminLogin } from '../../api';
-import { ShieldCheck, ArrowRight, Lock, Mail, Sparkles } from 'lucide-react';
+import { ShieldCheck, ArrowRight, Lock, Mail } from 'lucide-react';
 
 export default function AdminLogin() {
-  const [email, setEmail] = useState('admin@lightinmotion.store');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -17,104 +17,197 @@ export default function AdminLogin() {
     setLoading(true);
 
     try {
-      const res = await adminLogin(email, password);
+      const res = await adminLogin(email.trim(), password.trim());
       localStorage.setItem('lim_admin_token', res.token);
       localStorage.setItem('lim_admin_user', JSON.stringify(res.user));
       navigate('/admin');
     } catch (err) {
-      setError(err.message || 'Invalid admin credentials.');
+      setError(err.message || 'Invalid admin credentials. Please verify your email and password.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#090a0f', padding: '24px' }}>
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#060709',
+      padding: '24px',
+      fontFamily: 'var(--font-body)'
+    }}>
       <div style={{
         maxWidth: '420px',
         width: '100%',
-        background: '#0f131a',
-        border: '1px solid #1f293d',
-        borderRadius: '8px',
-        padding: '36px 30px',
-        boxShadow: '0 20px 40px rgba(0,0,0,0.6)'
+        backgroundColor: '#0d0f14',
+        border: '1px solid rgba(255, 255, 255, 0.09)',
+        borderRadius: '10px',
+        padding: '40px 32px',
+        boxShadow: '0 24px 48px rgba(0, 0, 0, 0.8)'
       }}>
-        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+        {/* Header Icon & Title */}
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <div style={{
-            width: '44px',
-            height: '44px',
+            width: '46px',
+            height: '46px',
             borderRadius: '8px',
-            background: '#008060',
-            color: '#fff',
+            backgroundColor: '#2563eb',
+            color: '#ffffff',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            margin: '0 auto 12px',
-            fontWeight: '800'
+            margin: '0 auto 14px',
+            boxShadow: '0 0 20px rgba(37, 99, 235, 0.4)'
           }}>
-            <ShieldCheck size={24} />
+            <ShieldCheck size={26} />
           </div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: '800', margin: '0 0 6px', color: '#fff' }}>LIGHTINMOTION Admin</h1>
-          <p style={{ color: '#94a3b8', fontSize: '0.82rem', margin: 0 }}>Merchant Operations & Catalog Controller</p>
+          <h1 style={{
+            fontSize: '1.45rem',
+            fontWeight: '900',
+            letterSpacing: '0.04em',
+            textTransform: 'uppercase',
+            color: '#ffffff',
+            margin: '0 0 6px',
+            fontFamily: 'var(--font-heading)'
+          }}>
+            LIGHTINMOTION Admin
+          </h1>
+          <p style={{ color: '#94a3b8', fontSize: '0.82rem', margin: 0 }}>
+            Merchant Operations & Catalog Controller
+          </p>
         </div>
 
+        {/* Error Alert Box */}
         {error && (
-          <div style={{ background: '#450a0a', border: '1px solid #dc2626', color: '#fca5a5', padding: '10px 14px', borderRadius: '4px', marginBottom: '18px', fontSize: '0.8rem' }}>
+          <div style={{
+            backgroundColor: 'rgba(239, 68, 68, 0.12)',
+            border: '1px solid #ef4444',
+            color: '#fca5a5',
+            padding: '12px 14px',
+            borderRadius: '6px',
+            marginBottom: '20px',
+            fontSize: '0.82rem',
+            lineHeight: 1.4
+          }}>
             {error}
           </div>
         )}
 
-        <form onSubmit={handleLogin}>
-          <div className="input-field-wrap">
-            <label className="input-label" style={{ color: '#cbd5e1' }}>Admin Email</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="theme-input"
-              style={{ background: '#090b0e', borderColor: '#26334d' }}
-            />
+        {/* Login Form */}
+        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+          {/* Email Field */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{
+              fontSize: '0.75rem',
+              fontWeight: '700',
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: '#94a3b8'
+            }}>
+              Admin Email
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="admin@lightinmotion.store"
+                style={{
+                  width: '100%',
+                  backgroundColor: '#111318',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '6px',
+                  padding: '11px 14px',
+                  fontSize: '0.9rem',
+                  color: '#ffffff',
+                  outline: 'none',
+                  transition: 'border-color 0.2s, box-shadow 0.2s'
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#2563eb'}
+                onBlur={(e) => e.target.style.borderColor = 'rgba(255, 255, 255, 0.12)'}
+              />
+            </div>
           </div>
 
-          <div className="input-field-wrap" style={{ marginBottom: '20px' }}>
-            <label className="input-label" style={{ color: '#cbd5e1' }}>Password</label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="theme-input"
-              style={{ background: '#090b0e', borderColor: '#26334d' }}
-            />
+          {/* Password Field */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{
+              fontSize: '0.75rem',
+              fontWeight: '700',
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: '#94a3b8'
+            }}>
+              Password
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter password"
+                style={{
+                  width: '100%',
+                  backgroundColor: '#111318',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '6px',
+                  padding: '11px 14px',
+                  fontSize: '0.9rem',
+                  color: '#ffffff',
+                  outline: 'none',
+                  transition: 'border-color 0.2s, box-shadow 0.2s'
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#2563eb'}
+                onBlur={(e) => e.target.style.borderColor = 'rgba(255, 255, 255, 0.12)'}
+              />
+            </div>
           </div>
 
+          {/* Submit Button */}
           <button
             type="submit"
             disabled={loading}
             style={{
               width: '100%',
-              background: '#008060',
+              backgroundColor: '#2563eb',
               color: '#ffffff',
               border: 'none',
-              padding: '12px',
-              borderRadius: '4px',
-              fontWeight: '700',
+              padding: '13px',
+              borderRadius: '6px',
+              fontWeight: '800',
               fontSize: '0.85rem',
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '8px'
+              gap: '8px',
+              marginTop: '8px',
+              transition: 'background-color 0.2s, transform 0.15s'
             }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1d4ed8'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
           >
             <span>{loading ? 'Verifying...' : 'Access Dashboard'}</span>
             <ArrowRight size={16} />
           </button>
         </form>
 
-        <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid #1f293d', textAlign: 'center', fontSize: '0.75rem', color: '#64748b' }}>
-          Default seed credentials: <code>admin@lightinmotion.store</code> / <code>admin123</code>
+        {/* Footer Note */}
+        <div style={{
+          marginTop: '28px',
+          paddingTop: '16px',
+          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+          textAlign: 'center',
+          fontSize: '0.75rem',
+          color: '#64748b'
+        }}>
+          Protected Merchant Terminal • LIGHTINMOTION
         </div>
       </div>
     </div>
