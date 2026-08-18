@@ -2,12 +2,10 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
-  Truck,
-  Headphones,
-  Package,
   Search,
   User,
   ShoppingBag,
+  Mail,
   X
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
@@ -32,22 +30,22 @@ export default function Header({ settings }) {
 
   return (
     <>
-      {/* Top Announcement Bar (Exact match to reference) */}
-      <div className="top-bar">
-        <div className="top-bar-left">
-          <Truck size={14} className="top-bar-icon" />
-          <span>{settings?.hero?.bannerText || 'FREE SHIPPING ON ORDERS ABOVE ₹999'}</span>
+      {/* Top Announcement Bar (Exact match to reference image) */}
+      <div className="home-top-announcement-bar">
+        <div className="announcement-spacer" />
+        <div className="announcement-main-text">
+          {settings?.hero?.bannerText || 'FREE SHIPPING ON ORDERS ABOVE ₹999'}
         </div>
-
-        <div className="top-bar-right">
-          <Link to="/contact" className="top-bar-link">
-            <Headphones size={13} />
-            <span>SUPPORT</span>
-          </Link>
-
-          <Link to="/track-order" className="top-bar-link">
-            <Package size={13} />
-            <span>TRACK ORDER</span>
+        <div className="announcement-social-links">
+          <a href="https://instagram.com" target="_blank" rel="noreferrer" className="top-social-link" aria-label="Instagram">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect width="20" height="20" x="2" y="2" rx="5" ry="5"/>
+              <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
+              <line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/>
+            </svg>
+          </a>
+          <Link to="/contact" className="top-social-link" aria-label="Email Contact">
+            <Mail size={14} />
           </Link>
         </div>
       </div>
@@ -87,7 +85,7 @@ export default function Header({ settings }) {
               title="Search products"
               aria-label="Search products"
             >
-              <Search size={20} />
+              <Search size={19} />
             </button>
 
             {/* Customer Account Button */}
@@ -97,7 +95,7 @@ export default function Header({ settings }) {
               title={customerToken ? 'My Account' : 'Login'}
               aria-label="Account"
             >
-              <User size={20} />
+              <User size={19} />
             </Link>
 
             {/* Cart Trigger */}
@@ -107,8 +105,8 @@ export default function Header({ settings }) {
               title="Shopping Cart"
               aria-label="Shopping Cart"
             >
-              <ShoppingBag size={20} />
-              <span className="cart-count-badge">{cartCount > 0 ? cartCount : 1}</span>
+              <ShoppingBag size={19} />
+              <span className="cart-count-badge">{cartCount}</span>
             </button>
           </div>
         </div>

@@ -2,9 +2,9 @@
 // Client-side IndexedDB persistence for products, media blobs, settings, and orders
 
 const DB_NAME = 'LightinmotionDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
-// Default Seed Products matching the user's screenshots
+// Default Seed Products matching reference images exactly
 const DEFAULT_PRODUCTS = [
   {
     id: 'prod-barlights',
@@ -15,8 +15,8 @@ const DEFAULT_PRODUCTS = [
 <p>These premium RGB light bars create vibrant lighting effects that sync beautifully with your environment, adding depth and style to your setup. Control colors, brightness, and dynamic lighting modes directly from your smartphone for a fully customizable experience.</p>
 <h4>Features</h4>
 <ul>
-  <li>Premium RGB ambient bar lights</li>
-  <li>Modern minimalist design</li>
+  <li>Premium RGB ambient bar lights with solid wooden base mounts</li>
+  <li>Modern minimalist vertical lighting design</li>
   <li>Bright and immersive lighting effects</li>
   <li>Mobile app control support</li>
   <li>Multiple dynamic RGB modes and animations</li>
@@ -24,13 +24,6 @@ const DEFAULT_PRODUCTS = [
   <li>Perfect for gaming setups, TVs, desks, and room décor</li>
   <li>Easy plug-and-play installation</li>
   <li>Smooth diffused lighting for premium aesthetics</li>
-</ul>
-<h4>Perfect For</h4>
-<ul>
-  <li>Gaming rooms</li>
-  <li>Streaming setups</li>
-  <li>TV backlighting & Home theater</li>
-  <li>Workspaces & Desks</li>
 </ul>`,
     price: 1899.00,
     comparePrice: 2499.00,
@@ -40,7 +33,7 @@ const DEFAULT_PRODUCTS = [
     collections: ['Home page', 'Ambient Lighting', 'Best Sellers'],
     tags: ['RGB', 'Desk Setup', 'Ambient', 'Smart Light'],
     inventory: 8,
-    location: 'Vardhman auro textile colony Katha near ESI Baddi',
+    location: 'Main Warehouse',
     sku: 'LIM-BAR-001',
     barcode: '890123456701',
     weight: 450,
@@ -48,19 +41,19 @@ const DEFAULT_PRODUCTS = [
       color: ['Black', 'Clear', 'White'],
       lightingFeatures: ['LED lighting', 'Adjustable brightness', 'Color temp sync', 'Remote App'],
       powerSource: 'USB 5V/2A',
-      suitableSpace: 'Indoors'
+      suitableSpace: 'Indoors / Desk'
     },
     media: [
       {
         id: 'm1',
         type: 'image',
-        url: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1000&q=80',
+        url: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=800&q=80',
         alt: 'Barlights Gaming Setup Pair'
       },
       {
         id: 'm2',
         type: 'image',
-        url: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?auto=format&fit=crop&w=1000&q=80',
+        url: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?auto=format&fit=crop&w=800&q=80',
         alt: 'Barlights on Minimal Desk'
       },
       {
@@ -84,7 +77,7 @@ const DEFAULT_PRODUCTS = [
   <li>IP67 Waterproof silicone tubing</li>
 </ul>`,
     price: 1499.00,
-    comparePrice: 1999.00,
+    comparePrice: null,
     status: 'Active',
     vendor: 'LIGHTINMOTION',
     category: 'LED Strip Lights',
@@ -105,7 +98,7 @@ const DEFAULT_PRODUCTS = [
       {
         id: 'm4',
         type: 'image',
-        url: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1000&q=80',
+        url: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=800&q=80',
         alt: 'Smart RGB Flex Strip Box and Coil'
       },
       {
@@ -128,7 +121,7 @@ const DEFAULT_PRODUCTS = [
   <li>Easy clip-on corner mounts</li>
 </ul>`,
     price: 1599.00,
-    comparePrice: 1999.00,
+    comparePrice: 1899.00,
     status: 'Active',
     vendor: 'LIGHTINMOTION',
     category: 'Monitor Lighting',
@@ -149,7 +142,7 @@ const DEFAULT_PRODUCTS = [
       {
         id: 'm6',
         type: 'image',
-        url: 'https://images.unsplash.com/photo-1593305841991-05c297ba4575?auto=format&fit=crop&w=1000&q=80',
+        url: 'https://images.unsplash.com/photo-1593305841991-05c297ba4575?auto=format&fit=crop&w=800&q=80',
         alt: 'Monitor Backlight Setup'
       }
     ]
@@ -187,7 +180,7 @@ const DEFAULT_PRODUCTS = [
       {
         id: 'm7',
         type: 'image',
-        url: 'https://images.unsplash.com/photo-1593784991095-a205069470b6?auto=format&fit=crop&w=1000&q=80',
+        url: 'https://images.unsplash.com/photo-1593784991095-a205069470b6?auto=format&fit=crop&w=800&q=80',
         alt: 'TV Backlight Living Room Setup'
       }
     ]
@@ -225,7 +218,7 @@ const DEFAULT_PRODUCTS = [
       {
         id: 'm8',
         type: 'image',
-        url: 'https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?auto=format&fit=crop&w=1000&q=80',
+        url: 'https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?auto=format&fit=crop&w=800&q=80',
         alt: 'Corner Lamp Light Ambience'
       }
     ]
@@ -234,11 +227,12 @@ const DEFAULT_PRODUCTS = [
 
 const DEFAULT_SETTINGS = {
   hero: {
-    title: 'LIGHT UP YOUR SPACE',
-    subtitle: 'SYNC. AMBIENT. IMMERSIVE.',
+    kicker: 'SYNC. AMBIENT. IMMERSIVE.',
+    titleLine1: 'LIGHT UP',
+    titleLine2: 'YOUR SPACE',
     description: 'Premium RGB lighting solutions to elevate your setup, sync with your world, and vibe your way.',
-    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-lights-in-a-computer-room-33100-large.mp4',
-    posterUrl: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1600&q=80'
+    imageUrl: 'https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?auto=format&fit=crop&w=1920&q=80',
+    bannerText: 'FREE SHIPPING ON ORDERS ABOVE ₹999'
   },
   announcement: 'FREE SHIPPING ON ORDERS ABOVE ₹999',
   storeName: 'LIGHTINMOTION',
@@ -248,7 +242,6 @@ const DEFAULT_SETTINGS = {
   phone: '+91 98765 43210'
 };
 
-// Open IndexedDB
 function openDatabase() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -280,11 +273,9 @@ function openDatabase() {
   });
 }
 
-// Initialize seed data if empty
 export async function initializeDatabase() {
   const db = await openDatabase();
   
-  // Check products
   const productsCount = await new Promise((resolve) => {
     const tx = db.transaction('products', 'readonly');
     const countReq = tx.objectStore('products').count();
@@ -299,7 +290,6 @@ export async function initializeDatabase() {
     await new Promise((res) => { tx.oncomplete = res; });
   }
 
-  // Check settings
   const settingsCount = await new Promise((resolve) => {
     const tx = db.transaction('settings', 'readonly');
     const countReq = tx.objectStore('settings').count();
@@ -315,7 +305,6 @@ export async function initializeDatabase() {
   }
 }
 
-// ---------------- Product Operations ----------------
 export async function getAllProducts() {
   await initializeDatabase();
   const db = await openDatabase();
@@ -323,8 +312,8 @@ export async function getAllProducts() {
     const tx = db.transaction('products', 'readonly');
     const store = tx.objectStore('products');
     const req = store.getAll();
-    req.onsuccess = () => resolve(req.result || []);
-    req.onerror = (err) => reject(err);
+    req.onsuccess = () => resolve(req.result || DEFAULT_PRODUCTS);
+    req.onerror = () => resolve(DEFAULT_PRODUCTS);
   });
 }
 
@@ -335,8 +324,12 @@ export async function getProductById(id) {
     const tx = db.transaction('products', 'readonly');
     const store = tx.objectStore('products');
     const req = store.get(id);
-    req.onsuccess = () => resolve(req.result || null);
-    req.onerror = (err) => reject(err);
+    req.onsuccess = () => {
+      if (req.result) return resolve(req.result);
+      const fallback = DEFAULT_PRODUCTS.find((p) => p.id === id || p.handle === id);
+      resolve(fallback || null);
+    };
+    req.onerror = () => resolve(null);
   });
 }
 
@@ -362,7 +355,6 @@ export async function deleteProduct(id) {
   });
 }
 
-// ---------------- Store Settings Operations ----------------
 export async function getSettings() {
   await initializeDatabase();
   const db = await openDatabase();
@@ -388,7 +380,6 @@ export async function saveSettings(settingsData) {
   });
 }
 
-// ---------------- Media Blob Storage (for Videos & Images) ----------------
 export async function storeMediaBlob(blobFile, type = 'image') {
   const db = await openDatabase();
   const id = 'blob_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
@@ -398,7 +389,7 @@ export async function storeMediaBlob(blobFile, type = 'image') {
     const store = tx.objectStore('blobs');
     const blobRecord = {
       id,
-      type, // 'image' or 'video'
+      type,
       fileName: blobFile.name,
       mimeType: blobFile.type,
       blob: blobFile,
@@ -406,7 +397,6 @@ export async function storeMediaBlob(blobFile, type = 'image') {
     };
     const req = store.put(blobRecord);
     req.onsuccess = () => {
-      // Create memory Object URL for current session usage
       const objectUrl = URL.createObjectURL(blobFile);
       resolve({
         id,
@@ -437,7 +427,6 @@ export async function getMediaBlobUrl(blobId) {
   });
 }
 
-// ---------------- Order Operations ----------------
 export async function createOrder(order) {
   const db = await openDatabase();
   const newOrder = {
@@ -468,7 +457,6 @@ export async function getAllOrders() {
   });
 }
 
-// ---------------- Database Backup / Reset ----------------
 export async function exportDatabaseBackup() {
   const products = await getAllProducts();
   const settings = await getSettings();
