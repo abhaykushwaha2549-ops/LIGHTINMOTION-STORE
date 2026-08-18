@@ -1,5 +1,5 @@
 // src/admin/pages/ProductForm.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   getProduct,
@@ -14,17 +14,22 @@ import {
   Play,
   Save,
   Trash2,
-  Plus
+  Plus,
+  Link as LinkIcon,
+  Image as ImageIcon
 } from 'lucide-react';
 
 export default function ProductForm() {
   const { id } = useParams();
   const isEditing = Boolean(id);
   const navigate = useNavigate();
+  const fileInputRef = useRef(null);
 
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [urlInput, setUrlInput] = useState('');
+  const [showUrlInput, setShowUrlInput] = useState(false);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -89,29 +94,77 @@ export default function ProductForm() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  // Convert File to Base64 Data URL (Universal Fallback)
+  const readFileAsDataUrl = (file) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        resolve({
+          url: reader.result,
+          type: file.type.startsWith('video/') ? 'video' : 'image',
+          fileName: file.name,
+          size: file.size
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Dual-mode Upload: Try server upload, fallback instantly to Base64
   const handleFileUpload = async (e) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
     setUploading(true);
+
     try {
+      // 1. Try Backend Upload
       const data = new FormData();
-      for (let i = 0; i < files.length; i++) {
-        data.append('files', files[i]);
+      files.forEach((f) => data.append('files', f));
+
+      let uploadedMedia = [];
+      try {
+        const res = await adminUploadFiles(data);
+        if (res?.files && res.files.length > 0) {
+          uploadedMedia = res.files;
+        }
+      } catch (uploadErr) {
+        console.warn('Backend upload skipped, generating data URLs:', uploadErr);
       }
 
-      const res = await adminUploadFiles(data);
-      if (res.files && res.files.length > 0) {
-        setFormData((prev) => ({
-          ...prev,
-          media: [...prev.media, ...res.files]
-        }));
+      // 2. If backend didn't return files, convert to data URLs
+      if (uploadedMedia.length === 0) {
+        uploadedMedia = await Promise.all(files.map(readFileAsDataUrl));
       }
+
+      setFormData((prev) => ({
+        ...prev,
+        media: [...prev.media, ...uploadedMedia]
+      }));
     } catch (err) {
-      alert(err.message || 'File upload failed.');
+      console.error('File upload error:', err);
+      alert('Failed to process image/video.');
     } finally {
       setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  const handleAddMediaByUrl = () => {
+    if (!urlInput.trim()) return;
+    const isVideo = urlInput.endsWith('.mp4') || urlInput.includes('video');
+    const newMediaItem = {
+      url: urlInput.trim(),
+      type: isVideo ? 'video' : 'image',
+      fileName: urlInput.split('/').pop() || 'Media Item'
+    };
+
+    setFormData((prev) => ({
+      ...prev,
+      media: [...prev.media, newMediaItem]
+    }));
+    setUrlInput('');
+    setShowUrlInput(false);
   };
 
   const handleRemoveMedia = (index) => {
@@ -145,7 +198,16 @@ export default function ProductForm() {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
+    if (!formData.title.trim()) {
+      alert('Please enter a product title.');
+      return;
+    }
+    if (!formData.price) {
+      alert('Please enter a valid product price.');
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -238,50 +300,124 @@ export default function ProductForm() {
             </div>
           </div>
 
-          {/* Media Card (Images and Videos via Multer) */}
+          {/* Media Card (Images and Videos) */}
           <div className="admin-card">
-            <h3 className="admin-card-title">Media Assets</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <h3 className="admin-card-title" style={{ margin: 0 }}>Media Assets (Images & Videos)</h3>
+              <button
+                type="button"
+                onClick={() => setShowUrlInput(!showUrlInput)}
+                className="admin-btn-secondary"
+                style={{ padding: '4px 10px', fontSize: '0.75rem' }}
+              >
+                <LinkIcon size={12} />
+                <span>Add from URL</span>
+              </button>
+            </div>
+
             <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '14px' }}>
-              Upload product photos and demonstration videos.
+              Upload product photos (JPG, PNG, WebP) and demonstration videos (MP4, WebM).
             </p>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+            {/* URL Input Bar */}
+            {showUrlInput && (
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', background: '#f8fafc', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                <input
+                  type="url"
+                  placeholder="Paste image or video URL (e.g. https://images.unsplash.com/... or .mp4)"
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  className="admin-input"
+                  style={{ flexGrow: 1 }}
+                />
+                <button
+                  type="button"
+                  onClick={handleAddMediaByUrl}
+                  className="admin-btn-primary"
+                  style={{ padding: '6px 14px' }}
+                >
+                  Add URL
+                </button>
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '14px', marginBottom: '16px' }}>
               {formData.media.map((m, idx) => (
-                <div key={idx} style={{ position: 'relative', aspectRatio: '1', borderRadius: '6px', overflow: 'hidden', border: '1px solid #cbd5e1', background: '#000' }}>
+                <div
+                  key={idx}
+                  style={{
+                    position: 'relative',
+                    aspectRatio: '1',
+                    borderRadius: '8px',
+                    overflow: 'hidden',
+                    border: '1px solid #cbd5e1',
+                    background: '#0a0c10',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.1)'
+                  }}
+                >
                   {m.type === 'video' ? (
-                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#111' }}>
-                      <Play size={24} color="#fff" />
+                    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#0f172a', color: '#38bdf8' }}>
+                      <Play size={28} />
+                      <span style={{ fontSize: '10px', fontWeight: '700', marginTop: '4px', textTransform: 'uppercase' }}>Video Clip</span>
                     </div>
                   ) : (
-                    <img src={m.url} alt={`Media ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <img
+                      src={m.url}
+                      alt={m.alt || `Media ${idx + 1}`}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
                   )}
+
                   <button
                     type="button"
                     onClick={() => handleRemoveMedia(idx)}
-                    style={{ position: 'absolute', top: '4px', right: '4px', background: 'rgba(220, 38, 38, 0.9)', color: '#fff', border: 'none', borderRadius: '50%', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                    title="Remove media"
+                    style={{
+                      position: 'absolute',
+                      top: '6px',
+                      right: '6px',
+                      backgroundColor: 'rgba(239, 68, 68, 0.95)',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '50%',
+                      width: '24px',
+                      height: '24px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
+                    }}
                   >
-                    <X size={12} />
+                    <X size={14} />
                   </button>
                 </div>
               ))}
 
-              <label style={{
-                aspectRatio: '1',
-                borderRadius: '6px',
-                border: '2px dashed #cbd5e1',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                background: '#f8fafc',
-                color: '#64748b',
-                fontSize: '0.75rem',
-                gap: '4px'
-              }}>
-                <Upload size={20} />
-                <span>{uploading ? 'Uploading...' : 'Add media'}</span>
+              {/* Upload Trigger Tile */}
+              <label
+                style={{
+                  aspectRatio: '1',
+                  borderRadius: '8px',
+                  border: '2px dashed #94a3b8',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  backgroundColor: '#f8fafc',
+                  color: '#475569',
+                  fontSize: '0.78rem',
+                  fontWeight: '600',
+                  gap: '6px',
+                  transition: 'background-color 0.2s, border-color 0.2s'
+                }}
+              >
+                <Upload size={22} color="#2563eb" />
+                <span>{uploading ? 'Processing...' : 'Upload Media'}</span>
+                <span style={{ fontSize: '10px', color: '#94a3b8' }}>Images & Videos</span>
                 <input
+                  ref={fileInputRef}
                   type="file"
                   multiple
                   accept="image/*,video/*"
@@ -379,7 +515,7 @@ export default function ProductForm() {
               </div>
 
               <div className="admin-form-group">
-                <label className="admin-label">Low Stock Threshold</label>
+                <label className="admin-label">Low Stock Alert</label>
                 <input
                   type="number"
                   name="low_stock_threshold"
