@@ -175,20 +175,6 @@ button, input, select, textarea {
   color: #ffffff;
 }
 
-.brand-logo-icon {
-  width: 28px;
-  height: 28px;
-  background: #ffffff;
-  color: #000000;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 900;
-  font-size: 13px;
-  letter-spacing: -0.04em;
-}
-
 .brand-logo-text {
   letter-spacing: 0.06em;
 }
@@ -272,6 +258,30 @@ button, input, select, textarea {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Expandable Search Modal Bar */
+.search-dropdown-bar {
+  background: #0d0f14;
+  border-top: 1px solid var(--border-color);
+  padding: 12px 48px;
+}
+
+.search-form-inner {
+  max-width: 900px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.search-input-field {
+  flex-grow: 1;
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  outline: none;
+  font-size: 0.95rem;
 }
 
 /* ==========================================================================
@@ -436,7 +446,7 @@ button, input, select, textarea {
 }
 
 /* ==========================================================================
-   HOMEPAGE OUR PRODUCTS
+   HOMEPAGE OUR PRODUCTS (FULL IMAGE VISIBILITY / CONTAINMENT)
    ========================================================================== */
 
 .exact-products-section {
@@ -501,20 +511,26 @@ button, input, select, textarea {
   transform: translateY(-3px);
 }
 
+/* Full Product Image Containment Box */
 .exact-card-media-box {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 10;
-  border-radius: 6px;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
   overflow: hidden;
-  background: #0d0f14;
+  background: #08090d;
   border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
 }
 
 .exact-card-img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
   display: block;
   transition: transform 0.3s ease;
 }
@@ -624,7 +640,7 @@ button, input, select, textarea {
 }
 
 /* ==========================================================================
-   SHOP PAGE & PRODUCT CATALOG (4-COLUMN GRID)
+   SHOP PAGE & PRODUCT CATALOG (4-COLUMN GRID / FULL IMAGE VISIBILITY)
    ========================================================================== */
 
 .shop-page-wrapper {
@@ -767,15 +783,21 @@ button, input, select, textarea {
 .shop-card-media-wrap {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 10;
-  background: #000000;
+  aspect-ratio: 1 / 1;
+  background: #08090d;
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
 }
 
 .shop-card-image {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
+  display: block;
   transition: transform 0.3s ease;
 }
 
@@ -796,6 +818,7 @@ button, input, select, textarea {
   text-transform: uppercase;
   padding: 2px 7px;
   border-radius: 4px;
+  z-index: 2;
 }
 
 .shop-video-badge {
@@ -812,6 +835,7 @@ button, input, select, textarea {
   display: flex;
   align-items: center;
   gap: 4px;
+  z-index: 2;
 }
 
 .shop-card-info-wrap {
@@ -901,7 +925,7 @@ button, input, select, textarea {
   width: 100%;
   height: 520px;
   max-height: 580px;
-  background: #090a0f;
+  background: #08090d;
   border: 1px solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
@@ -915,7 +939,7 @@ button, input, select, textarea {
   height: 100%;
   object-fit: contain;
   object-position: center;
-  padding: 12px;
+  padding: 14px;
   display: block;
 }
 
@@ -960,7 +984,7 @@ button, input, select, textarea {
   aspect-ratio: 1;
   border-radius: 6px;
   overflow: hidden;
-  background: #090a0f;
+  background: #08090d;
   border: 1px solid var(--border-color);
   cursor: pointer;
   padding: 4px;
@@ -1803,17 +1827,6 @@ button, input, select, textarea {
   align-items: center;
   gap: 10px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.admin-brand-icon {
-  width: 28px;
-  height: 28px;
-  background: #008060;
-  color: #ffffff;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .admin-nav {

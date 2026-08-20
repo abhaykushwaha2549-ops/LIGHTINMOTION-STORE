@@ -21,8 +21,18 @@ export default function Footer({ settings }) {
         <div className="footer-columns-five">
           {/* Column 1: Brand & Socials */}
           <div className="footer-brand-col">
-            <div className="footer-logo-row">
-              <div className="brand-logo-icon">LM</div>
+            <div className="footer-logo-row" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <img
+                src="/logo.jpg"
+                alt="LIGHTINMOTION Logo"
+                style={{
+                  width: '30px',
+                  height: '30px',
+                  borderRadius: '6px',
+                  objectFit: 'cover',
+                  border: '1px solid rgba(255, 255, 255, 0.15)'
+                }}
+              />
               <span className="footer-brand-title">LIGHTINMOTION</span>
             </div>
 

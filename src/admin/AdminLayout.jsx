@@ -13,8 +13,7 @@ import {
   Globe,
   ExternalLink,
   Search,
-  LogOut,
-  Sparkles
+  LogOut
 } from 'lucide-react';
 
 export default function AdminLayout() {
@@ -56,12 +55,20 @@ export default function AdminLayout() {
       {/* Sidebar */}
       <aside className="admin-sidebar">
         <div className="admin-brand">
-          <div className="admin-brand-icon">
-            <Sparkles size={16} />
-          </div>
+          <img
+            src="/logo.jpg"
+            alt="LIGHTINMOTION"
+            style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '6px',
+              objectFit: 'cover',
+              border: '1px solid rgba(255, 255, 255, 0.2)'
+            }}
+          />
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: '0.95rem', fontWeight: '800', letterSpacing: '0.04em' }}>shopify</span>
-            <span style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>LIGHTINMOTION</span>
+            <span style={{ fontSize: '0.95rem', fontWeight: '800', letterSpacing: '0.04em' }}>LIGHTINMOTION</span>
+            <span style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Merchant Admin</span>
           </div>
         </div>
 
@@ -142,20 +149,17 @@ export default function AdminLayout() {
               <span>View Store</span>
             </Link>
 
-            <div style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '50%',
-              background: '#008060',
-              color: '#ffffff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: '700',
-              fontSize: '13px'
-            }}>
-              LM
-            </div>
+            <img
+              src="/logo.jpg"
+              alt="Admin Profile"
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                objectFit: 'cover',
+                border: '1px solid #cbd5e1'
+              }}
+            />
           </div>
         </header>
 

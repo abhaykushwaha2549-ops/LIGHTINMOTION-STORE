@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { adminLogin } from '../../api';
-import { ShieldCheck, ArrowRight, Lock, Mail } from 'lucide-react';
+import { ArrowRight, Lock, Mail } from 'lucide-react';
 
 export default function AdminLogin() {
   const [email, setEmail] = useState('');
@@ -49,22 +49,22 @@ export default function AdminLogin() {
         padding: '40px 32px',
         boxShadow: '0 24px 48px rgba(0, 0, 0, 0.8)'
       }}>
-        {/* Header Icon & Title */}
+        {/* Header Logo & Title */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{
-            width: '46px',
-            height: '46px',
-            borderRadius: '8px',
-            backgroundColor: '#2563eb',
-            color: '#ffffff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            margin: '0 auto 14px',
-            boxShadow: '0 0 20px rgba(37, 99, 235, 0.4)'
-          }}>
-            <ShieldCheck size={26} />
-          </div>
+          <img
+            src="/logo.jpg"
+            alt="LIGHTINMOTION Emblem"
+            style={{
+              width: '56px',
+              height: '56px',
+              borderRadius: '12px',
+              objectFit: 'cover',
+              margin: '0 auto 16px',
+              display: 'block',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.6)'
+            }}
+          />
           <h1 style={{
             fontSize: '1.45rem',
             fontWeight: '900',

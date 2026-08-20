@@ -30,7 +30,7 @@ export default function Header({ settings }) {
 
   return (
     <>
-      {/* Top Announcement Bar (Exact match to reference image) */}
+      {/* Top Announcement Bar */}
       <div className="home-top-announcement-bar">
         <div className="announcement-spacer" />
         <div className="announcement-main-text">
@@ -53,11 +53,20 @@ export default function Header({ settings }) {
       {/* Main Header */}
       <header className="site-header">
         <div className="site-header-inner">
-          {/* Brand Logo */}
-          <Link to="/" className="brand-logo">
-            <div className="brand-logo-icon">
-              LM
-            </div>
+          {/* Brand Logo with New Emblem */}
+          <Link to="/" className="brand-logo" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <img
+              src="/logo.jpg"
+              alt="LIGHTINMOTION Logo"
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '7px',
+                objectFit: 'cover',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                boxShadow: '0 0 10px rgba(0, 0, 0, 0.5)'
+              }}
+            />
             <span className="brand-logo-text">LIGHTINMOTION</span>
           </Link>
 
