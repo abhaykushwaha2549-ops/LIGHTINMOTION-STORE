@@ -203,63 +203,170 @@ export const verifyRazorpaySignature = async (verificationData) => {
 };
 
 // ---------------- DISCOUNTS API ----------------
+const getStoredOfflineDiscounts = () => {
+  const seedDiscounts = [
+    { id: 'disc_welcome10', code: 'WELCOME10', type: 'percentage', amount: 10, min_order_value: 0, max_discount_amount: null, is_active: 1, usage_count: 5, created_at: new Date().toISOString() },
+    { id: 'disc_light500', code: 'LIGHT500', type: 'fixed', amount: 500, min_order_value: 2500, max_discount_amount: null, is_active: 1, usage_count: 2, created_at: new Date().toISOString() },
+    { id: 'disc_lim15', code: 'LIM15', type: 'percentage', amount: 15, min_order_value: 1200, max_discount_amount: null, is_active: 1, usage_count: 0, created_at: new Date().toISOString() }
+  ];
+
+  try {
+    const raw = localStorage.getItem('lim_offline_discounts');
+    if (!raw) {
+      localStorage.setItem('lim_offline_discounts', JSON.stringify(seedDiscounts));
+      return seedDiscounts;
+    }
+    const list = JSON.parse(raw);
+    return Array.isArray(list) && list.length > 0 ? list : seedDiscounts;
+  } catch {
+    return seedDiscounts;
+  }
+};
+
+const saveOfflineDiscounts = (list) => {
+  try {
+    localStorage.setItem('lim_offline_discounts', JSON.stringify(list));
+  } catch (e) {
+    console.error('Save offline discounts error:', e);
+  }
+};
+
 export const validateDiscount = async (code, subtotal, customerEmail) => {
   const cleanCode = code ? code.trim().toUpperCase() : '';
+  if (!cleanCode) {
+    throw new Error('Please enter a discount code.');
+  }
+
+  let serverErr = null;
   try {
-    return await apiFetch('/api/discounts/validate', {
+    const res = await apiFetch('/api/discounts/validate', {
       method: 'POST',
       body: JSON.stringify({ code: cleanCode, subtotal, customerEmail })
     });
-  } catch {
-    if (cleanCode === 'WELCOME10') {
-      const discountAmount = Math.round((subtotal * 0.1) * 100) / 100;
-      return {
-        valid: true,
-        code: 'WELCOME10',
-        type: 'percentage',
-        rate: 10,
-        discountAmount,
-        finalSubtotal: Math.max(0, subtotal - discountAmount)
-      };
-    }
-    if (cleanCode === 'LIGHT500' && subtotal >= 2500) {
-      return {
-        valid: true,
-        code: 'LIGHT500',
-        type: 'fixed',
-        rate: 500,
-        discountAmount: 500,
-        finalSubtotal: Math.max(0, subtotal - 500)
-      };
-    }
+    if (res && res.valid) return res;
+  } catch (err) {
+    serverErr = err;
+  }
+
+  // If server responded with a specific validation error, rethrow it
+  if (serverErr && serverErr.message && !serverErr.message.includes('Failed to fetch') && !serverErr.message.includes('404')) {
+    throw serverErr;
+  }
+
+  // Hybrid Dynamic Fallback: Check live discounts database (Admin created)
+  const discounts = getStoredOfflineDiscounts();
+  const found = discounts.find((d) => d.code && d.code.trim().toUpperCase() === cleanCode);
+
+  if (!found) {
     throw new Error(`Discount code "${cleanCode}" is invalid or expired.`);
   }
+
+  if (!found.is_active) {
+    throw new Error(`Discount code "${cleanCode}" is currently disabled.`);
+  }
+
+  const now = new Date();
+  if (found.expiry_date && new Date(found.expiry_date) < now) {
+    throw new Error(`Discount code "${cleanCode}" has expired.`);
+  }
+
+  if (found.min_order_value && subtotal < Number(found.min_order_value)) {
+    const diff = (Number(found.min_order_value) - subtotal).toFixed(2);
+    throw new Error(`Add ₹${diff} more to your cart to use discount code "${cleanCode}" (Min order ₹${found.min_order_value}).`);
+  }
+
+  let discountAmount = 0;
+  if (found.type === 'percentage') {
+    discountAmount = (subtotal * Number(found.amount)) / 100;
+    if (found.max_discount_amount) {
+      discountAmount = Math.min(discountAmount, Number(found.max_discount_amount));
+    }
+  } else {
+    discountAmount = Number(found.amount);
+  }
+
+  discountAmount = Math.min(discountAmount, subtotal);
+  discountAmount = Math.round(discountAmount * 100) / 100;
+
+  return {
+    valid: true,
+    discountId: found.id,
+    code: found.code,
+    type: found.type,
+    rate: Number(found.amount),
+    discountAmount,
+    finalSubtotal: Math.max(0, subtotal - discountAmount)
+  };
 };
 
 export const adminGetDiscounts = async () => {
+  const localList = getStoredOfflineDiscounts();
   try {
-    return await apiFetch('/api/discounts/admin/all', { isAdmin: true });
-  } catch {
-    return [
-      { id: '1', code: 'WELCOME10', type: 'percentage', amount: 10, min_order_value: 999, is_active: 1, usage_count: 5 },
-      { id: '2', code: 'LIGHT500', type: 'fixed', amount: 500, min_order_value: 2500, is_active: 1, usage_count: 2 }
-    ];
+    const serverList = await apiFetch('/api/discounts/admin/all', { isAdmin: true });
+    if (Array.isArray(serverList)) {
+      const mergedMap = new Map();
+      localList.forEach((d) => mergedMap.set(d.code.toUpperCase(), d));
+      serverList.forEach((d) => mergedMap.set(d.code.toUpperCase(), d));
+      const merged = Array.from(mergedMap.values());
+      saveOfflineDiscounts(merged);
+      return merged;
+    }
+  } catch (err) {
+    console.warn('Server fetch discounts error, using offline store:', err);
   }
+  return localList;
 };
 
 export const adminCreateDiscount = async (data) => {
+  const cleanCode = data.code ? data.code.trim().toUpperCase() : '';
+  const newDiscount = {
+    id: 'disc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+    code: cleanCode,
+    type: data.type || 'percentage',
+    amount: Number(data.amount) || 0,
+    min_order_value: Number(data.min_order_value) || 0,
+    max_discount_amount: data.max_discount_amount ? Number(data.max_discount_amount) : null,
+    start_date: data.start_date || null,
+    expiry_date: data.expiry_date || null,
+    usage_limit: data.usage_limit ? Number(data.usage_limit) : null,
+    usage_limit_per_customer: Number(data.usage_limit_per_customer) || 1,
+    is_active: data.is_active !== undefined ? (data.is_active ? 1 : 0) : 1,
+    first_order_only: data.first_order_only ? 1 : 0,
+    usage_count: 0,
+    created_at: new Date().toISOString()
+  };
+
+  const list = getStoredOfflineDiscounts();
+  const existingIdx = list.findIndex((d) => d.code.toUpperCase() === cleanCode);
+  if (existingIdx >= 0) {
+    list[existingIdx] = newDiscount;
+  } else {
+    list.unshift(newDiscount);
+  }
+  saveOfflineDiscounts(list);
+
   try {
-    return await apiFetch('/api/discounts/admin/create', {
+    const res = await apiFetch('/api/discounts/admin/create', {
       method: 'POST',
       body: JSON.stringify(data),
       isAdmin: true
     });
-  } catch {
-    return data;
+    if (res && res.id) return res;
+  } catch (err) {
+    console.warn('Server create discount error, saved locally:', err);
   }
+
+  return newDiscount;
 };
 
 export const adminUpdateDiscount = async (id, data) => {
+  const list = getStoredOfflineDiscounts();
+  const index = list.findIndex((d) => d.id === id || d.code === id);
+  if (index >= 0) {
+    list[index] = { ...list[index], ...data };
+    saveOfflineDiscounts(list);
+  }
+
   try {
     return await apiFetch(`/api/discounts/admin/${id}`, {
       method: 'PUT',
@@ -272,6 +379,10 @@ export const adminUpdateDiscount = async (id, data) => {
 };
 
 export const adminDeleteDiscount = async (id) => {
+  const list = getStoredOfflineDiscounts();
+  const filtered = list.filter((d) => d.id !== id && d.code !== id);
+  saveOfflineDiscounts(filtered);
+
   try {
     return await apiFetch(`/api/discounts/admin/${id}`, {
       method: 'DELETE',
