@@ -62,11 +62,8 @@ export default function Home() {
           {/* Dissolve Gradient Overlay (Soft bottom dissolve into dark background) */}
           <div className="exact-hero-gradient-overlay" />
 
-          {/* Interactive Reactive Warm Lamp Glow Overlay */}
-          <div className={`reactive-lamp-glow-overlay ${lampGlowing ? 'active' : ''}`} />
-
-          {/* Cone Light Beam Projection */}
-          <div className={`lamp-flare-beam ${lampGlowing ? 'active' : ''}`} />
+          {/* Pure Clean Warm Lamp Glow */}
+          <div className={`clean-lamp-glow ${lampGlowing ? 'active' : ''}`} />
         </div>
 
         {/* Hero Content Box */}
@@ -95,14 +92,6 @@ export default function Home() {
                 <span>EXPLORE SETUPS</span>
               </Link>
             </div>
-          </div>
-
-          {/* Interactive Hint Indicator */}
-          <div
-            className={`lamp-interactive-hint ${lampGlowing ? 'active' : ''}`}
-            onMouseEnter={() => setLampGlowing(true)}
-          >
-            <span>✨ Move mouse to ignite ambient lamp glow</span>
           </div>
 
           {/* Carousel Pagination Dots at Bottom Center */}

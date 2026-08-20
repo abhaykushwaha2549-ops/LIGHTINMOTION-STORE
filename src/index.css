@@ -315,13 +315,12 @@ button, input, select, textarea {
   height: 100%;
   object-fit: cover;
   object-position: right center;
-  filter: brightness(0.85) contrast(1.02);
-  transition: filter 0.5s cubic-bezier(0.16, 1, 0.3, 1), transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  filter: brightness(0.88) contrast(1.02);
+  transition: filter 0.4s ease;
 }
 
 .exact-hero-image.lamp-glowing {
-  filter: brightness(1.22) contrast(1.1) drop-shadow(0 0 45px rgba(255, 185, 90, 0.65));
-  transform: scale(1.015);
+  filter: brightness(1.15) contrast(1.08);
 }
 
 /* Seamless Bottom Dissolve & Horizontal Text Shadow Overlay */
@@ -335,78 +334,26 @@ button, input, select, textarea {
   pointer-events: none;
 }
 
-/* Interactive Reactive Warm Lamp Glow Overlay */
-.reactive-lamp-glow-overlay {
+/* Pure Clean Warm Lamp Glow directly focused inside/around the bulb */
+.clean-lamp-glow {
   position: absolute;
   inset: 0;
   z-index: 3;
   pointer-events: none;
   background: radial-gradient(
-    circle 550px at 68% 58%,
-    rgba(255, 190, 95, 0.55) 0%,
-    rgba(255, 140, 30, 0.28) 32%,
-    rgba(255, 90, 0, 0.08) 60%,
-    transparent 82%
+    circle 320px at 67% 53%,
+    rgba(255, 210, 120, 0.65) 0%,
+    rgba(255, 160, 40, 0.28) 35%,
+    rgba(255, 100, 0, 0.08) 60%,
+    transparent 78%
   );
   opacity: 0;
-  transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 0.4s ease;
+  mix-blend-mode: screen;
 }
 
-.reactive-lamp-glow-overlay.active {
+.clean-lamp-glow.active {
   opacity: 1;
-}
-
-/* Dynamic Cone Light Beam Projection */
-.lamp-flare-beam {
-  position: absolute;
-  top: 50%;
-  right: 25%;
-  width: 260px;
-  height: 320px;
-  z-index: 4;
-  pointer-events: none;
-  background: radial-gradient(
-    ellipse at 50% 0%,
-    rgba(255, 220, 130, 0.5) 0%,
-    rgba(255, 160, 50, 0.2) 40%,
-    transparent 75%
-  );
-  clip-path: polygon(38% 0%, 62% 0%, 100% 100%, 0% 100%);
-  opacity: 0;
-  transform: translateY(-8px) scale(0.95);
-  transition: opacity 0.45s ease, transform 0.45s ease;
-}
-
-.lamp-flare-beam.active {
-  opacity: 1;
-  transform: translateY(0) scale(1.05);
-}
-
-/* Subtle Interactive Hint Badge */
-.lamp-interactive-hint {
-  position: absolute;
-  bottom: 22px;
-  right: 48px;
-  z-index: 12;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: #a1a1aa;
-  background: rgba(23, 23, 26, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 5px 12px;
-  border-radius: 20px;
-  backdrop-filter: blur(8px);
-  cursor: pointer;
-  transition: color 0.3s, border-color 0.3s, background 0.3s;
-  pointer-events: auto;
-}
-
-.lamp-interactive-hint:hover,
-.lamp-interactive-hint.active {
-  color: #fbbf24;
-  border-color: rgba(251, 191, 36, 0.4);
-  background: rgba(251, 191, 36, 0.1);
 }
 
 .exact-hero-content-container {
