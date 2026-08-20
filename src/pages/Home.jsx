@@ -39,7 +39,7 @@ export default function Home() {
     titleLine1: 'LIGHT UP',
     titleLine2: 'YOUR SPACE',
     description: 'Premium RGB lighting solutions to elevate your setup, sync with your world, and vibe your way.',
-    imageUrl: 'https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?auto=format&fit=crop&w=1920&q=80'
+    imageUrl: '/hero_hanging_lamp.png'
   };
 
   return (
@@ -49,7 +49,7 @@ export default function Home() {
         {/* Background Image / Overlay */}
         <div className="exact-hero-bg-wrap">
           <img
-            src={hero.imageUrl || 'https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?auto=format&fit=crop&w=1920&q=80'}
+            src={hero.imageUrl || '/hero_hanging_lamp.png'}
             alt="LIGHTINMOTION Ambient Fixture"
             className="exact-hero-image"
           />
