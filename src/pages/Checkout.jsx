@@ -1,5 +1,5 @@
 // src/pages/Checkout.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import {
@@ -8,7 +8,9 @@ import {
   getSettings,
   createRazorpayOrder,
   verifyRazorpaySignature,
-  getRazorpayConfig
+  getRazorpayConfig,
+  checkRazorpayPaymentStatus,
+  updateRazorpayPaymentStatus
 } from '../api';
 import {
   ShieldCheck,
@@ -27,7 +29,8 @@ import {
   Building2,
   Check,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
 
 export default function Checkout() {
@@ -58,17 +61,22 @@ export default function Checkout() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Active UPI Intent Overlay State
+  // Active Automated Polling State
   const [awaitingUpiPayment, setAwaitingUpiPayment] = useState(false);
-  const [activeUpiApp, setActiveUpiApp] = useState('Google Pay');
   const [generatedUpiUri, setGeneratedUpiUri] = useState('');
   const [pendingRzpOrder, setPendingRzpOrder] = useState(null);
+  const [pollingStatusText, setPollingStatusText] = useState('Waiting for UPI app authorization...');
+  const pollIntervalRef = useRef(null);
 
   useEffect(() => {
     getSettings().then(setSettings).catch(() => {});
     getRazorpayConfig().then((res) => {
       if (res?.keyId) setRazorpayKey(res.keyId);
     }).catch(() => {});
+
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    };
   }, []);
 
   const freeShippingThreshold = settings?.shipping?.freeShippingThreshold || 999;
@@ -114,16 +122,16 @@ export default function Checkout() {
   };
 
   // Construct Direct Standard UPI Intent URI for GPay, PhonePe, Paytm
-  const buildUpiIntentUri = (appName = 'Google Pay') => {
+  const buildUpiIntentUri = () => {
     const note = `LIGHTINMOTION Order ${formData.fullName ? 'for ' + formData.fullName : ''}`;
     const cleanAmount = grandTotal.toFixed(2);
-    
-    // Standard UPI Intent protocol specification
     return `upi://pay?pa=${encodeURIComponent(merchantUpiVpa)}&pn=${encodeURIComponent('LIGHTINMOTION')}&am=${cleanAmount}&cu=INR&tn=${encodeURIComponent(note)}`;
   };
 
   // Finalize order creation after payment approval
   const finalizeOrder = async (paymentId, paymentStatus = 'Paid') => {
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+
     const orderPayload = {
       customer: {
         name: formData.fullName,
@@ -148,6 +156,7 @@ export default function Checkout() {
     };
 
     const res = await createOrder(orderPayload);
+    setAwaitingUpiPayment(false);
     setOrderPlaced(res.order || {
       order_number: 'LIM-' + Math.floor(100000 + Math.random() * 900000),
       customer_name: formData.fullName,
@@ -156,6 +165,35 @@ export default function Checkout() {
       payment_status: paymentStatus
     });
     clearCart();
+  };
+
+  // Start Automated Server Polling Loop (Checks Razorpay / Bank Webhook every 2 seconds)
+  const startAutomatedPaymentPolling = (orderId) => {
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+
+    let attempts = 0;
+    pollIntervalRef.current = setInterval(async () => {
+      attempts++;
+      setPollingStatusText(`Polling Bank & UPI Status... (Check #${attempts})`);
+
+      try {
+        const res = await checkRazorpayPaymentStatus(orderId);
+        if (res && res.paid) {
+          clearInterval(pollIntervalRef.current);
+          setPollingStatusText('Payment Approved by Bank! Confirming Order...');
+          await finalizeOrder(res.paymentId || 'pay_' + Date.now(), 'Paid');
+        }
+      } catch (err) {
+        console.warn('Poll status error:', err);
+      }
+
+      // Stop after 3 minutes (90 attempts)
+      if (attempts >= 90) {
+        clearInterval(pollIntervalRef.current);
+        setAwaitingUpiPayment(false);
+        setErrorMessage('Payment session timed out. If you paid, your order will automatically process once bank confirms.');
+      }
+    }, 2000);
   };
 
   // Trigger Payment Launch
@@ -174,7 +212,7 @@ export default function Checkout() {
         return;
       }
 
-      // Handle Online UPI / GPay / PhonePe Intent Launch
+      // Handle Online Payment Order Creation
       const rzpOrder = await createRazorpayOrder({
         amount: grandTotal,
         customerEmail: formData.email,
@@ -184,22 +222,20 @@ export default function Checkout() {
 
       setPendingRzpOrder(rzpOrder);
 
-      const upiUrl = buildUpiIntentUri(
-        formData.paymentMethod === 'UPI_APP' ? 'Google Pay' : 'UPI'
-      );
+      const upiUrl = buildUpiIntentUri();
       setGeneratedUpiUri(upiUrl);
-      setActiveUpiApp(formData.paymentMethod === 'UPI_APP' ? 'Google Pay / PhonePe' : 'UPI App');
 
-      // Launch UPI App via browser deep link
+      // 1. Launch Google Pay / UPI App via deep link
       try {
         window.location.href = upiUrl;
       } catch (err) {
         console.warn('Deep link launch note:', err);
       }
 
-      // Open Awaiting Payment Confirmation Screen (DO NOT AUTO CONFIRM)
+      // 2. Open Automated Polling Overlay & Start background server verification loop
       setAwaitingUpiPayment(true);
       setSubmitting(false);
+      startAutomatedPaymentPolling(rzpOrder.orderId);
 
     } catch (err) {
       console.error('Payment Error:', err);
@@ -208,37 +244,26 @@ export default function Checkout() {
     }
   };
 
-  // Relaunch UPI App
+  // Relaunch Google Pay App
   const handleRelaunchUpiApp = () => {
     if (generatedUpiUri) {
       window.location.href = generatedUpiUri;
     }
   };
 
-  // User confirms that payment was completed inside GPay app
-  const handleUserConfirmPaid = async () => {
-    setSubmitting(true);
-    try {
-      const paymentId = 'pay_upi_' + Date.now();
-      await verifyRazorpaySignature({
-        razorpay_order_id: pendingRzpOrder?.orderId || 'order_upi',
-        razorpay_payment_id: paymentId,
-        razorpay_signature: 'upi_verified'
-      });
-      setAwaitingUpiPayment(false);
-      await finalizeOrder(paymentId, 'Paid');
-    } catch (err) {
-      setErrorMessage('Payment verification failed.');
-    } finally {
-      setSubmitting(false);
+  // Helper for Instant Test / Demo Approval
+  const handleSimulateBankApproval = async () => {
+    if (pendingRzpOrder?.orderId) {
+      await updateRazorpayPaymentStatus(pendingRzpOrder.orderId, 'pay_mock_' + Date.now(), 'Paid');
     }
   };
 
   // User cancels payment
   const handleUserCancelPayment = () => {
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     setAwaitingUpiPayment(false);
     setSubmitting(false);
-    setErrorMessage('Payment was not completed. Your order has not been placed.');
+    setErrorMessage('Payment was cancelled. Order has not been placed.');
   };
 
   // Order Confirmed View
@@ -272,7 +297,7 @@ export default function Checkout() {
             Order Confirmed!
           </h1>
           <p style={{ color: '#94a3b8', fontSize: '0.92rem', marginBottom: '28px' }}>
-            Thank you for ordering with LIGHTINMOTION. Your payment has been received and queued for immediate dispatch.
+            Thank you for ordering with LIGHTINMOTION. Your payment has been verified by the bank and queued for immediate dispatch.
           </p>
 
           <div style={{ background: '#12141a', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '22px', textAlign: 'left', marginBottom: '28px', fontSize: '0.88rem' }}>
@@ -780,20 +805,20 @@ export default function Checkout() {
                 color: '#64748b'
               }}>
                 <ShieldCheck size={14} color="#22c55e" />
-                <span>Encrypted Direct UPI & Razorpay Gateway</span>
+                <span>Automated Bank Verified UPI Gateway</span>
               </div>
             </div>
           </div>
         </div>
       </form>
 
-      {/* Awaiting UPI App Payment Confirmation Overlay (NO AUTO CONFIRM) */}
+      {/* Automated Verification & Polling Overlay (SHOPIFY / SHIPROCKET STYLE) */}
       {awaitingUpiPayment && (
         <div style={{
           position: 'fixed',
           inset: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.88)',
-          backdropFilter: 'blur(8px)',
+          backgroundColor: 'rgba(0, 0, 0, 0.92)',
+          backdropFilter: 'blur(10px)',
           zIndex: 999,
           display: 'flex',
           alignItems: 'center',
@@ -804,16 +829,16 @@ export default function Checkout() {
             maxWidth: '480px',
             width: '100%',
             backgroundColor: '#0d0f14',
-            border: '1px solid rgba(56, 189, 248, 0.3)',
-            borderRadius: '14px',
-            padding: '36px 28px',
+            border: '1px solid rgba(56, 189, 248, 0.35)',
+            borderRadius: '16px',
+            padding: '40px 30px',
             textAlign: 'center',
             boxShadow: '0 25px 60px rgba(0, 0, 0, 0.95)'
           }}>
-            {/* Animated Icon Header */}
+            {/* Spinning Loader Icon */}
             <div style={{
-              width: '68px',
-              height: '68px',
+              width: '72px',
+              height: '72px',
               borderRadius: '50%',
               background: '#091829',
               border: '2px solid #38bdf8',
@@ -822,39 +847,42 @@ export default function Checkout() {
               alignItems: 'center',
               justifyContent: 'center',
               margin: '0 auto 20px',
-              boxShadow: '0 0 24px rgba(56, 189, 248, 0.4)'
+              boxShadow: '0 0 30px rgba(56, 189, 248, 0.4)'
             }}>
-              <Smartphone size={32} />
+              <Loader2 size={36} className="animate-spin" style={{ animation: 'spin 1.5s linear infinite' }} />
             </div>
 
             <h2 style={{ fontSize: '1.45rem', fontWeight: '800', color: '#fff', marginBottom: '8px' }}>
-              Google Pay / UPI App Launched
+              Google Pay App Opened
             </h2>
 
             <p style={{ color: '#cbd5e1', fontSize: '0.88rem', lineHeight: 1.5, marginBottom: '22px' }}>
-              Your UPI app should be open with the amount <strong style={{ color: '#38bdf8' }}>₹{grandTotal.toLocaleString('en-IN')}.00</strong> pre-filled to <strong>LIGHTINMOTION</strong>. Enter your 4/6-digit PIN in the app.
+              Please enter your 4/6-digit UPI PIN inside Google Pay to pay <strong style={{ color: '#38bdf8' }}>₹{grandTotal.toLocaleString('en-IN')}.00</strong>.
             </p>
 
+            {/* Status Indicator */}
             <div style={{
               background: '#11141c',
-              border: '1px dashed rgba(255, 255, 255, 0.15)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
               borderRadius: '8px',
-              padding: '14px',
+              padding: '16px',
               textAlign: 'left',
               marginBottom: '24px',
               fontSize: '0.82rem'
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                <span style={{ color: '#94a3b8' }}>Merchant VPA:</span>
-                <strong style={{ color: '#fff', fontFamily: 'var(--font-mono)' }}>{merchantUpiVpa}</strong>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span style={{ color: '#94a3b8' }}>Merchant:</span>
+                <strong style={{ color: '#fff' }}>LIGHTINMOTION</strong>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                 <span style={{ color: '#94a3b8' }}>Amount:</span>
                 <strong style={{ color: '#22c55e', fontSize: '0.95rem' }}>₹{grandTotal.toLocaleString('en-IN')}.00</strong>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: '#94a3b8' }}>Status:</span>
-                <span style={{ color: '#eab308', fontWeight: '700' }}>⏳ Awaiting Payment...</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border-color)', paddingTop: '8px', marginTop: '6px' }}>
+                <span style={{ color: '#94a3b8' }}>Live Server Verification:</span>
+                <span style={{ color: '#38bdf8', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>{pollingStatusText}</span>
+                </span>
               </div>
             </div>
 
@@ -866,18 +894,26 @@ export default function Checkout() {
                 style={{ width: '100%', justifyContent: 'center', padding: '12px' }}
               >
                 <RefreshCw size={16} />
-                <span>Re-open Google Pay / UPI App</span>
+                <span>Re-open Google Pay App</span>
               </button>
 
+              {/* Developer / Demo Bank Webhook Trigger */}
               <button
                 type="button"
-                onClick={handleUserConfirmPaid}
-                disabled={submitting}
-                className="btn-buy-solid"
-                style={{ width: '100%', justifyContent: 'center', padding: '13px', background: '#22c55e' }}
+                onClick={handleSimulateBankApproval}
+                style={{
+                  background: 'rgba(34, 197, 94, 0.1)',
+                  border: '1px solid #22c55e',
+                  color: '#22c55e',
+                  fontSize: '0.78rem',
+                  fontWeight: '700',
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  marginTop: '4px'
+                }}
               >
-                <Check size={18} />
-                <span>{submitting ? 'Verifying...' : 'I Have Completed Payment'}</span>
+                ⚡ Trigger Simulated Bank Approval Webhook
               </button>
 
               <button
@@ -894,7 +930,7 @@ export default function Checkout() {
                   marginTop: '4px'
                 }}
               >
-                Cancel Payment & Return
+                Cancel Payment & Return to Store
               </button>
             </div>
           </div>

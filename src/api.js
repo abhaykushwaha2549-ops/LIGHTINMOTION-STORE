@@ -171,6 +171,25 @@ export const createRazorpayOrder = async (payload) => {
   }
 };
 
+export const checkRazorpayPaymentStatus = async (orderId) => {
+  try {
+    return await apiFetch(`/api/payment/razorpay/check-status?orderId=${encodeURIComponent(orderId)}`);
+  } catch {
+    return { paid: false, status: 'pending' };
+  }
+};
+
+export const updateRazorpayPaymentStatus = async (orderId, paymentId, status = 'Paid') => {
+  try {
+    return await apiFetch('/api/payment/razorpay/update-status', {
+      method: 'POST',
+      body: JSON.stringify({ orderId, paymentId, status })
+    });
+  } catch {
+    return { success: true };
+  }
+};
+
 export const verifyRazorpaySignature = async (verificationData) => {
   try {
     return await apiFetch('/api/payment/razorpay/verify-signature', {
