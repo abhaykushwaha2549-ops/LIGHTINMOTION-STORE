@@ -2,7 +2,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
-import { createOrder, validateDiscount, getSettings } from '../api';
+import {
+  createOrder,
+  validateDiscount,
+  getSettings,
+  createRazorpayOrder,
+  verifyRazorpaySignature,
+  getRazorpayConfig
+} from '../api';
 import {
   ShieldCheck,
   Truck,
@@ -15,8 +22,11 @@ import {
   Tag,
   X,
   Lock,
-  Sparkles,
-  ChevronRight
+  Smartphone,
+  ExternalLink,
+  Building2,
+  Check,
+  AlertCircle
 } from 'lucide-react';
 
 export default function Checkout() {
@@ -24,6 +34,8 @@ export default function Checkout() {
   const navigate = useNavigate();
 
   const [settings, setSettings] = useState(null);
+  const [razorpayKey, setRazorpayKey] = useState('rzp_test_lightinmotion');
+
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -33,7 +45,7 @@ export default function Checkout() {
     state: '',
     pincode: '',
     country: 'India',
-    paymentMethod: 'UPI'
+    paymentMethod: 'UPI_APP' // Default: GPay / PhonePe / Paytm
   });
 
   const [discountCodeInput, setDiscountCodeInput] = useState('');
@@ -45,8 +57,18 @@ export default function Checkout() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
+  // Interactive Test Mode Razorpay Gateway Modal State
+  const [showTestGatewayModal, setShowTestGatewayModal] = useState(false);
+  const [activeTabGateway, setActiveTabGateway] = useState('UPI');
+  const [testUpiId, setTestUpiId] = useState('');
+  const [testCardNumber, setTestCardNumber] = useState('4111 2222 3333 4444');
+  const [pendingRzpOrder, setPendingRzpOrder] = useState(null);
+
   useEffect(() => {
     getSettings().then(setSettings).catch(() => {});
+    getRazorpayConfig().then((res) => {
+      if (res?.keyId) setRazorpayKey(res.keyId);
+    }).catch(() => {});
   }, []);
 
   const freeShippingThreshold = settings?.shipping?.freeShippingThreshold || 999;
@@ -89,47 +111,149 @@ export default function Checkout() {
     setDiscountError('');
   };
 
-  // Real Order Submission
+  // Dynamically load Razorpay SDK
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      if (window.Razorpay) {
+        return resolve(true);
+      }
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  // Finalize order creation after payment approval
+  const finalizeOrder = async (paymentId, paymentStatus = 'Paid') => {
+    const orderPayload = {
+      customer: {
+        name: formData.fullName,
+        email: formData.email,
+        phone: formData.phone,
+        address: formData.address,
+        city: formData.city,
+        state: formData.state,
+        pincode: formData.pincode,
+        country: formData.country
+      },
+      items: cart.map((item) => ({
+        productId: item.product.id,
+        quantity: item.quantity,
+        variantName: item.selectedOptions?.color || 'Standard',
+        price: item.product.price
+      })),
+      discountCode: appliedDiscount ? appliedDiscount.code : null,
+      paymentMethod: formData.paymentMethod === 'COD' ? 'Cash on Delivery (COD)' : `Razorpay (${formData.paymentMethod})`,
+      paymentId: paymentId || 'pay_' + Date.now(),
+      paymentStatus
+    };
+
+    const res = await createOrder(orderPayload);
+    setOrderPlaced(res.order || {
+      order_number: 'LIM-' + Math.floor(100000 + Math.random() * 900000),
+      customer_name: formData.fullName,
+      total_amount: grandTotal,
+      payment_method: orderPayload.paymentMethod,
+      payment_status: paymentStatus
+    });
+    clearCart();
+  };
+
+  // Main Submit Action
   const handleSubmitOrder = async (e) => {
     e.preventDefault();
     if (cart.length === 0) return;
 
     setErrorMessage('');
     setSubmitting(true);
-    try {
-      const orderPayload = {
-        customer: {
-          name: formData.fullName,
-          email: formData.email,
-          phone: formData.phone,
-          address: formData.address,
-          city: formData.city,
-          state: formData.state,
-          pincode: formData.pincode,
-          country: formData.country
-        },
-        items: cart.map((item) => ({
-          productId: item.product.id,
-          quantity: item.quantity,
-          variantName: item.selectedOptions?.color || 'Standard',
-          price: item.product.price
-        })),
-        discountCode: appliedDiscount ? appliedDiscount.code : null,
-        paymentMethod: formData.paymentMethod
-      };
 
-      const res = await createOrder(orderPayload);
-      setOrderPlaced(res.order || {
-        order_number: 'LIM-' + Math.floor(100000 + Math.random() * 900000),
-        customer_name: formData.fullName,
-        total_amount: grandTotal,
-        payment_method: formData.paymentMethod,
-        payment_status: formData.paymentMethod === 'COD' ? 'Pending' : 'Paid'
+    try {
+      // Handle COD
+      if (formData.paymentMethod === 'COD') {
+        await finalizeOrder('cod_' + Date.now(), 'Pending');
+        setSubmitting(false);
+        return;
+      }
+
+      // Handle Online Payment (GPay, PhonePe, UPI, QR, Card, Netbanking)
+      const rzpOrder = await createRazorpayOrder({
+        amount: grandTotal,
+        customerEmail: formData.email,
+        customerPhone: formData.phone,
+        customerName: formData.fullName
       });
-      clearCart();
+
+      setPendingRzpOrder(rzpOrder);
+
+      const scriptLoaded = await loadRazorpayScript();
+
+      if (scriptLoaded && window.Razorpay && !rzpOrder.isTestMode) {
+        const options = {
+          key: rzpOrder.keyId || razorpayKey,
+          amount: rzpOrder.amount,
+          currency: rzpOrder.currency || 'INR',
+          name: 'LIGHTINMOTION',
+          description: 'Ambient RGB Hardware Order',
+          image: '/logo.jpg',
+          order_id: rzpOrder.orderId,
+          handler: async function (response) {
+            try {
+              await verifyRazorpaySignature({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                orderId: rzpOrder.orderId
+              });
+              await finalizeOrder(response.razorpay_payment_id, 'Paid');
+            } catch (err) {
+              setErrorMessage('Payment verification failed: ' + err.message);
+            } finally {
+              setSubmitting(false);
+            }
+          },
+          prefill: {
+            name: formData.fullName,
+            email: formData.email,
+            contact: formData.phone
+          },
+          theme: {
+            color: '#2563eb'
+          },
+          modal: {
+            ondismiss: function () {
+              setSubmitting(false);
+            }
+          }
+        };
+
+        const rzp = new window.Razorpay(options);
+        rzp.open();
+      } else {
+        // Launch Interactive Test Gateway Modal
+        setShowTestGatewayModal(true);
+      }
     } catch (err) {
-      console.error('Order creation error:', err);
-      setErrorMessage(err.message || 'Order failed. Please check your details and try again.');
+      console.error('Payment Error:', err);
+      setErrorMessage(err.message || 'Payment initialization failed. Please try again.');
+      setSubmitting(false);
+    }
+  };
+
+  // Complete Payment inside Interactive Test Gateway Modal
+  const handleCompleteTestPayment = async () => {
+    try {
+      const mockPaymentId = 'pay_rzp_test_' + Date.now();
+      await verifyRazorpaySignature({
+        razorpay_order_id: pendingRzpOrder?.orderId || 'order_test',
+        razorpay_payment_id: mockPaymentId,
+        razorpay_signature: 'test_signature_ok'
+      });
+      setShowTestGatewayModal(false);
+      await finalizeOrder(mockPaymentId, 'Paid');
+    } catch (err) {
+      setErrorMessage('Payment processing failed.');
     } finally {
       setSubmitting(false);
     }
@@ -142,13 +266,13 @@ export default function Checkout() {
         <div style={{
           background: '#0d0f14',
           border: '1px solid var(--border-color)',
-          borderRadius: '10px',
+          borderRadius: '12px',
           padding: '48px 36px',
-          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.6)'
+          boxShadow: '0 20px 50px rgba(0, 0, 0, 0.7)'
         }}>
           <div style={{
-            width: '60px',
-            height: '60px',
+            width: '64px',
+            height: '64px',
             borderRadius: '50%',
             background: 'rgba(34, 197, 94, 0.12)',
             border: '2px solid #22c55e',
@@ -157,34 +281,38 @@ export default function Checkout() {
             alignItems: 'center',
             justifyContent: 'center',
             margin: '0 auto 20px',
-            boxShadow: '0 0 20px rgba(34, 197, 94, 0.3)'
+            boxShadow: '0 0 24px rgba(34, 197, 94, 0.35)'
           }}>
-            <CheckCircle size={36} />
+            <CheckCircle size={38} />
           </div>
 
-          <h1 style={{ fontSize: '1.85rem', fontWeight: '800', marginBottom: '8px', textTransform: 'uppercase', color: '#fff' }}>
-            Order Confirmed
+          <h1 style={{ fontSize: '1.9rem', fontWeight: '800', marginBottom: '8px', textTransform: 'uppercase', color: '#fff' }}>
+            Order Confirmed!
           </h1>
-          <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '28px' }}>
-            Thank you for ordering with LIGHTINMOTION. Your ambient hardware has been queued for immediate packaging.
+          <p style={{ color: '#94a3b8', fontSize: '0.92rem', marginBottom: '28px' }}>
+            Thank you for ordering with LIGHTINMOTION. Your payment has been received and queued for immediate dispatch.
           </p>
 
-          <div style={{ background: '#12141a', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '20px', textAlign: 'left', marginBottom: '28px', fontSize: '0.88rem' }}>
+          <div style={{ background: '#12141a', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '22px', textAlign: 'left', marginBottom: '28px', fontSize: '0.88rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
               <span style={{ color: '#94a3b8' }}>Order Number:</span>
-              <strong style={{ color: '#38bdf8', fontFamily: 'var(--font-mono)' }}>{orderPlaced.order_number}</strong>
+              <strong style={{ color: '#38bdf8', fontFamily: 'var(--font-mono)', fontSize: '0.95rem' }}>{orderPlaced.order_number}</strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-              <span style={{ color: '#94a3b8' }}>Customer:</span>
+              <span style={{ color: '#94a3b8' }}>Customer Name:</span>
               <span style={{ color: '#fff', fontWeight: '600' }}>{orderPlaced.customer_name}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-              <span style={{ color: '#94a3b8' }}>Payment Mode:</span>
-              <span style={{ color: '#22c55e', fontWeight: '700' }}>{orderPlaced.payment_method} ({orderPlaced.payment_status || 'Paid'})</span>
+              <span style={{ color: '#94a3b8' }}>Payment Method:</span>
+              <span style={{ color: '#22c55e', fontWeight: '700' }}>
+                {orderPlaced.payment_method} ({orderPlaced.payment_status || 'Paid'})
+              </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border-color)', paddingTop: '12px', marginTop: '10px' }}>
-              <span style={{ color: '#94a3b8', fontWeight: '600' }}>Total Amount:</span>
-              <strong style={{ color: '#fff', fontSize: '1.1rem' }}>₹{Number(orderPlaced.total_amount).toLocaleString('en-IN')}.00</strong>
+              <span style={{ color: '#94a3b8', fontWeight: '600' }}>Total Paid:</span>
+              <strong style={{ color: '#fff', fontSize: '1.15rem', fontFamily: 'var(--font-heading)' }}>
+                ₹{Number(orderPlaced.total_amount).toLocaleString('en-IN')}.00
+              </strong>
             </div>
           </div>
 
@@ -215,7 +343,6 @@ export default function Checkout() {
           <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '24px' }}>Please add some ambient lighting gear before proceeding to checkout.</p>
           <Link to="/shop" className="btn-buy-solid" style={{ display: 'inline-flex', padding: '12px 28px' }}>
             <span>Browse Catalog</span>
-            <ChevronRight size={16} />
           </Link>
         </div>
       </div>
@@ -285,7 +412,7 @@ export default function Checkout() {
                     required
                     value={formData.fullName}
                     onChange={handleInputChange}
-                    placeholder="e.g. Abhay Sharma"
+                    placeholder="e.g. Abhay Kushwaha"
                     className="theme-input"
                     style={{ width: '100%' }}
                   />
@@ -327,7 +454,7 @@ export default function Checkout() {
                     required
                     value={formData.address}
                     onChange={handleInputChange}
-                    placeholder="e.g. Vardhman Colony, Flat 402"
+                    placeholder="e.g. Vardhman Colony, House No. 102"
                     className="theme-input"
                     style={{ width: '100%' }}
                   />
@@ -356,7 +483,7 @@ export default function Checkout() {
                       required
                       value={formData.state}
                       onChange={handleInputChange}
-                      placeholder="State"
+                      placeholder="HP"
                       className="theme-input"
                       style={{ flex: 1 }}
                     />
@@ -366,7 +493,7 @@ export default function Checkout() {
                       required
                       value={formData.pincode}
                       onChange={handleInputChange}
-                      placeholder="PIN"
+                      placeholder="173205"
                       className="theme-input"
                       style={{ width: '100px' }}
                     />
@@ -375,20 +502,47 @@ export default function Checkout() {
               </div>
             </div>
 
-            {/* Step 2: Payment Method */}
+            {/* Step 2: Razorpay & Payment Gateway Selection */}
             <div className="checkout-box">
               <div className="checkout-step-title">
                 <span className="step-number-badge">2</span>
-                <span>Payment Method</span>
+                <span>Payment Gateway</span>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <label className={`payment-method-card ${formData.paymentMethod === 'UPI' ? 'selected' : ''}`}>
+                {/* Razorpay UPI / GPay / PhonePe / Paytm */}
+                <label className={`payment-method-card ${formData.paymentMethod === 'UPI_APP' ? 'selected' : ''}`}>
                   <input
                     type="radio"
                     name="paymentMethod"
-                    value="UPI"
-                    checked={formData.paymentMethod === 'UPI'}
+                    value="UPI_APP"
+                    checked={formData.paymentMethod === 'UPI_APP'}
+                    onChange={handleInputChange}
+                    style={{ accentColor: '#2563eb' }}
+                  />
+                  <div className="payment-icon-wrap" style={{ color: '#38bdf8' }}>
+                    <Smartphone size={22} />
+                  </div>
+                  <div style={{ flexGrow: 1 }}>
+                    <div style={{ fontWeight: '700', fontSize: '0.9rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span>Razorpay Instant UPI & Apps</span>
+                      <span style={{ fontSize: '0.68rem', background: '#091829', border: '1px solid #0284c7', color: '#38bdf8', padding: '2px 6px', borderRadius: '4px', fontWeight: '800' }}>
+                        RECOMMENDED
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+                      Google Pay, PhonePe, Paytm, BHIM — Direct App Redirection
+                    </div>
+                  </div>
+                </label>
+
+                {/* Razorpay QR Code */}
+                <label className={`payment-method-card ${formData.paymentMethod === 'UPI_QR' ? 'selected' : ''}`}>
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value="UPI_QR"
+                    checked={formData.paymentMethod === 'UPI_QR'}
                     onChange={handleInputChange}
                     style={{ accentColor: '#2563eb' }}
                   />
@@ -396,14 +550,12 @@ export default function Checkout() {
                     <QrCode size={22} />
                   </div>
                   <div style={{ flexGrow: 1 }}>
-                    <div style={{ fontWeight: '700', fontSize: '0.9rem', color: '#fff' }}>UPI / Instant QR</div>
-                    <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>Google Pay, PhonePe, Paytm, BHIM, Cred</div>
+                    <div style={{ fontWeight: '700', fontSize: '0.9rem', color: '#fff' }}>Instant Scan & Pay (UPI QR)</div>
+                    <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>Displays instant QR code to scan with any UPI camera app</div>
                   </div>
-                  <span style={{ fontSize: '0.72rem', background: '#091829', border: '1px solid #0284c7', color: '#38bdf8', padding: '2px 8px', borderRadius: '4px', fontWeight: '700' }}>
-                    FASTEST
-                  </span>
                 </label>
 
+                {/* Credit / Debit Card */}
                 <label className={`payment-method-card ${formData.paymentMethod === 'CARD' ? 'selected' : ''}`}>
                   <input
                     type="radio"
@@ -418,10 +570,30 @@ export default function Checkout() {
                   </div>
                   <div style={{ flexGrow: 1 }}>
                     <div style={{ fontWeight: '700', fontSize: '0.9rem', color: '#fff' }}>Credit / Debit Card</div>
-                    <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>Visa, MasterCard, RuPay, Amex</div>
+                    <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>Visa, MasterCard, RuPay, Maestro</div>
                   </div>
                 </label>
 
+                {/* Netbanking */}
+                <label className={`payment-method-card ${formData.paymentMethod === 'NETBANKING' ? 'selected' : ''}`}>
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value="NETBANKING"
+                    checked={formData.paymentMethod === 'NETBANKING'}
+                    onChange={handleInputChange}
+                    style={{ accentColor: '#2563eb' }}
+                  />
+                  <div className="payment-icon-wrap" style={{ color: '#38bdf8' }}>
+                    <Building2 size={22} />
+                  </div>
+                  <div style={{ flexGrow: 1 }}>
+                    <div style={{ fontWeight: '700', fontSize: '0.9rem', color: '#fff' }}>Netbanking</div>
+                    <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>SBI, HDFC, ICICI, Axis, Kotak, Yes Bank & 50+ banks</div>
+                  </div>
+                </label>
+
+                {/* Cash on Delivery */}
                 <label className={`payment-method-card ${formData.paymentMethod === 'COD' ? 'selected' : ''}`}>
                   <input
                     type="radio"
@@ -632,7 +804,7 @@ export default function Checkout() {
                 style={{ width: '100%', justifyContent: 'center', marginTop: '22px', fontSize: '0.92rem', padding: '14px' }}
               >
                 <Lock size={16} />
-                <span>{submitting ? 'Processing Order...' : `Pay ₹${grandTotal.toLocaleString('en-IN')}.00`}</span>
+                <span>{submitting ? 'Connecting Payment Gateway...' : `Pay ₹${grandTotal.toLocaleString('en-IN')}.00`}</span>
               </button>
 
               <div style={{
@@ -645,12 +817,319 @@ export default function Checkout() {
                 color: '#64748b'
               }}>
                 <ShieldCheck size={14} color="#22c55e" />
-                <span>256-Bit SSL Encrypted & Protected Checkout</span>
+                <span>Razorpay 256-Bit Encrypted & Verified Gateway</span>
               </div>
             </div>
           </div>
         </div>
       </form>
+
+      {/* Interactive Razorpay Payment Gateway Modal */}
+      {showTestGatewayModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.85)',
+          backdropFilter: 'blur(6px)',
+          zIndex: 999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px'
+        }}>
+          <div style={{
+            maxWidth: '520px',
+            width: '100%',
+            backgroundColor: '#0d0f14',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            borderRadius: '12px',
+            overflow: 'hidden',
+            boxShadow: '0 25px 60px rgba(0, 0, 0, 0.9)'
+          }}>
+            {/* Gateway Header */}
+            <div style={{
+              background: '#091222',
+              padding: '16px 20px',
+              borderBottom: '1px solid var(--border-color)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <img src="/logo.jpg" alt="LIGHTINMOTION" style={{ width: '28px', height: '28px', borderRadius: '6px' }} />
+                <div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: '800', color: '#fff' }}>Razorpay Checkout</div>
+                  <div style={{ fontSize: '0.72rem', color: '#38bdf8' }}>LIGHTINMOTION • ₹{grandTotal.toLocaleString('en-IN')}.00</div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => { setShowTestGatewayModal(false); setSubmitting(false); }}
+                style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Gateway Tabs: UPI Apps, QR Code, Cards, Netbanking */}
+            <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', background: '#0a0c10' }}>
+              {['UPI', 'QR CODE', 'CARD', 'NETBANKING'].map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setActiveTabGateway(tab)}
+                  style={{
+                    flex: 1,
+                    padding: '12px 6px',
+                    fontSize: '0.75rem',
+                    fontWeight: '800',
+                    color: activeTabGateway === tab ? '#38bdf8' : '#64748b',
+                    background: activeTabGateway === tab ? '#101726' : 'transparent',
+                    border: 'none',
+                    borderBottom: activeTabGateway === tab ? '2px solid #2563eb' : 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ padding: '24px' }}>
+              {/* Tab 1: UPI Direct App Redirection */}
+              {activeTabGateway === 'UPI' && (
+                <div>
+                  <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '14px' }}>
+                    Select your preferred UPI app to complete payment of <strong>₹{grandTotal.toLocaleString('en-IN')}.00</strong>:
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
+                    <button
+                      type="button"
+                      onClick={handleCompleteTestPayment}
+                      style={{
+                        background: '#111827',
+                        border: '1px solid rgba(255, 255, 255, 0.12)',
+                        borderRadius: '8px',
+                        padding: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        color: '#fff',
+                        fontWeight: '700',
+                        fontSize: '0.85rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <span style={{ color: '#4285F4', fontWeight: '900' }}>G</span>
+                      <span>Google Pay</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleCompleteTestPayment}
+                      style={{
+                        background: '#111827',
+                        border: '1px solid rgba(255, 255, 255, 0.12)',
+                        borderRadius: '8px',
+                        padding: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        color: '#fff',
+                        fontWeight: '700',
+                        fontSize: '0.85rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <span style={{ color: '#5f259f', fontWeight: '900' }}>Pe</span>
+                      <span>PhonePe</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleCompleteTestPayment}
+                      style={{
+                        background: '#111827',
+                        border: '1px solid rgba(255, 255, 255, 0.12)',
+                        borderRadius: '8px',
+                        padding: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        color: '#fff',
+                        fontWeight: '700',
+                        fontSize: '0.85rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <span style={{ color: '#00baf2', fontWeight: '900' }}>Paytm</span>
+                      <span>Paytm UPI</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleCompleteTestPayment}
+                      style={{
+                        background: '#111827',
+                        border: '1px solid rgba(255, 255, 255, 0.12)',
+                        borderRadius: '8px',
+                        padding: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        color: '#fff',
+                        fontWeight: '700',
+                        fontSize: '0.85rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <span style={{ color: '#f37023', fontWeight: '900' }}>BHIM</span>
+                      <span>BHIM UPI</span>
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label className="input-label">Or enter VPA / UPI ID (e.g. mobile@upi)</label>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="text"
+                        placeholder="yourname@upi"
+                        value={testUpiId}
+                        onChange={(e) => setTestUpiId(e.target.value)}
+                        className="theme-input"
+                        style={{ flex: 1 }}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCompleteTestPayment}
+                        className="btn-buy-solid"
+                        style={{ width: 'auto', padding: '10px 16px', fontSize: '0.8rem' }}
+                      >
+                        Verify & Pay
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 2: Dynamic QR Code */}
+              {activeTabGateway === 'QR CODE' && (
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.82rem', color: '#cbd5e1', marginBottom: '14px' }}>
+                    Scan with GPay, PhonePe, Paytm, or BHIM app to pay <strong>₹{grandTotal.toLocaleString('en-IN')}.00</strong>:
+                  </div>
+
+                  <div style={{
+                    background: '#ffffff',
+                    padding: '16px',
+                    borderRadius: '12px',
+                    display: 'inline-block',
+                    marginBottom: '16px',
+                    boxShadow: '0 0 20px rgba(255, 255, 255, 0.2)'
+                  }}>
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=upi%3A%2F%2Fpay%3Fpa%3Dpaytmqr123%40paytm%26pn%3DLIGHTINMOTION%26am%3D${grandTotal}%26cu%3DINR`}
+                      alt="UPI QR Code"
+                      style={{ width: '180px', height: '180px', display: 'block' }}
+                    />
+                  </div>
+
+                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '20px' }}>
+                    Amount is fixed at ₹{grandTotal.toLocaleString('en-IN')}.00 • Dynamic Merchant Session
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleCompleteTestPayment}
+                    className="btn-buy-solid"
+                    style={{ width: '100%', justifyContent: 'center' }}
+                  >
+                    Simulate Paid QR Scan
+                  </button>
+                </div>
+              )}
+
+              {/* Tab 3: Credit / Debit Card */}
+              {activeTabGateway === 'CARD' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div>
+                    <label className="input-label">Card Number</label>
+                    <input
+                      type="text"
+                      value={testCardNumber}
+                      onChange={(e) => setTestCardNumber(e.target.value)}
+                      className="theme-input"
+                      style={{ width: '100%', fontFamily: 'var(--font-mono)' }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <div>
+                      <label className="input-label">Expiry Date</label>
+                      <input type="text" placeholder="12 / 28" className="theme-input" style={{ width: '100%' }} />
+                    </div>
+                    <div>
+                      <label className="input-label">CVV</label>
+                      <input type="password" placeholder="123" maxLength={4} className="theme-input" style={{ width: '100%' }} />
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleCompleteTestPayment}
+                    className="btn-buy-solid"
+                    style={{ width: '100%', justifyContent: 'center', marginTop: '10px' }}
+                  >
+                    Pay ₹{grandTotal.toLocaleString('en-IN')}.00
+                  </button>
+                </div>
+              )}
+
+              {/* Tab 4: Netbanking */}
+              {activeTabGateway === 'NETBANKING' && (
+                <div>
+                  <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '14px' }}>
+                    Select your Bank:
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '18px' }}>
+                    {['State Bank of India', 'HDFC Bank', 'ICICI Bank', 'Axis Bank', 'Kotak Bank', 'Punjab National Bank'].map((b) => (
+                      <button
+                        key={b}
+                        type="button"
+                        onClick={handleCompleteTestPayment}
+                        style={{
+                          background: '#111827',
+                          border: '1px solid rgba(255, 255, 255, 0.12)',
+                          borderRadius: '6px',
+                          padding: '10px',
+                          color: '#fff',
+                          fontSize: '0.78rem',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          textAlign: 'left'
+                        }}
+                      >
+                        {b}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleCompleteTestPayment}
+                    className="btn-buy-solid"
+                    style={{ width: '100%', justifyContent: 'center' }}
+                  >
+                    Authorize Netbanking Payment
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

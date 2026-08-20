@@ -1,7 +1,7 @@
 // src/admin/pages/Settings.jsx
 import React, { useState, useEffect } from 'react';
 import { getSettings, adminUpdateSettings } from '../../api';
-import { Settings as SettingsIcon, Save, Truck, DollarSign, Mail } from 'lucide-react';
+import { Settings as SettingsIcon, Save, Truck, DollarSign, Mail, CreditCard, ShieldCheck } from 'lucide-react';
 
 export default function Settings() {
   const [general, setGeneral] = useState({
@@ -18,12 +18,22 @@ export default function Settings() {
     dispatchHub: 'Baddi Fulfillment Center, Himachal Pradesh'
   });
 
+  const [payment, setPayment] = useState({
+    razorpayKeyId: 'rzp_test_lightinmotion',
+    razorpayKeySecret: '••••••••••••••••',
+    enableUpi: true,
+    enableQr: true,
+    enableCards: true,
+    enableCod: true
+  });
+
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     getSettings().then((s) => {
       if (s.general) setGeneral(s.general);
       if (s.shipping) setShipping(s.shipping);
+      if (s.payment) setPayment(s.payment);
     }).catch(() => {});
   }, []);
 
@@ -33,9 +43,10 @@ export default function Settings() {
     try {
       await adminUpdateSettings({
         general,
-        shipping
+        shipping,
+        payment
       });
-      alert('Store settings saved successfully!');
+      alert('Store settings & payment gateway configuration saved successfully!');
     } catch (err) {
       alert(err.message || 'Failed to save settings.');
     } finally {
@@ -48,7 +59,7 @@ export default function Settings() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>
           <h1 className="admin-page-title">Store Settings</h1>
-          <p className="admin-page-subtitle">Configure store contact details, shipping rules, and fulfillment policies.</p>
+          <p className="admin-page-subtitle">Configure store contact details, Razorpay payment gateway, shipping rules, and fulfillment policies.</p>
         </div>
 
         <button
@@ -135,6 +146,78 @@ export default function Settings() {
               onChange={(e) => setShipping({ ...shipping, dispatchHub: e.target.value })}
               className="admin-input"
             />
+          </div>
+        </div>
+
+        {/* Razorpay Payment Gateway Settings */}
+        <div className="admin-card" style={{ gridColumn: 'span 2' }}>
+          <h3 className="admin-card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <CreditCard size={18} color="#2563eb" />
+            <span>Razorpay Payment Gateway Configuration (UPI, GPay, QR, Cards)</span>
+          </h3>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div className="admin-form-group">
+              <label className="admin-label">Razorpay Key ID</label>
+              <input
+                type="text"
+                value={payment.razorpayKeyId}
+                onChange={(e) => setPayment({ ...payment, razorpayKeyId: e.target.value })}
+                placeholder="rzp_live_..."
+                className="admin-input"
+              />
+              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Public Key ID for client-side Razorpay modal.</span>
+            </div>
+
+            <div className="admin-form-group">
+              <label className="admin-label">Razorpay Key Secret</label>
+              <input
+                type="password"
+                value={payment.razorpayKeySecret}
+                onChange={(e) => setPayment({ ...payment, razorpayKeySecret: e.target.value })}
+                placeholder="Key Secret"
+                className="admin-input"
+              />
+              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Used for HMAC SHA-256 server verification.</span>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '20px', marginTop: '10px', paddingTop: '14px', borderTop: '1px solid #e5e7eb' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={payment.enableUpi}
+                onChange={(e) => setPayment({ ...payment, enableUpi: e.target.checked })}
+              />
+              <span>UPI Apps (GPay, PhonePe, Paytm)</span>
+            </label>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={payment.enableQr}
+                onChange={(e) => setPayment({ ...payment, enableQr: e.target.checked })}
+              />
+              <span>Instant QR Code</span>
+            </label>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={payment.enableCards}
+                onChange={(e) => setPayment({ ...payment, enableCards: e.target.checked })}
+              />
+              <span>Credit / Debit Cards</span>
+            </label>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={payment.enableCod}
+                onChange={(e) => setPayment({ ...payment, enableCod: e.target.checked })}
+              />
+              <span>Cash on Delivery (COD)</span>
+            </label>
           </div>
         </div>
       </form>

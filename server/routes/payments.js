@@ -1,64 +1,123 @@
 // server/routes/payments.js
 import { Router } from 'express';
+import crypto from 'crypto';
 import db from '../db/database.js';
 
 const router = Router();
 
-// Create payment transaction intent
-router.post('/create-intent', (req, res) => {
+// Get public Razorpay Key ID
+router.get('/razorpay/config', (req, res) => {
   try {
-    const { amount, currency = 'INR', customerEmail, orderNotes } = req.body;
+    const keyId = process.env.RAZORPAY_KEY_ID || 'rzp_test_lightinmotion';
+    res.json({ keyId, enabled: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch payment config.' });
+  }
+});
+
+// Create Razorpay Order Endpoint
+router.post('/razorpay/create-order', async (req, res) => {
+  try {
+    const { amount, currency = 'INR', customerEmail, customerPhone, orderNotes } = req.body;
     const numAmount = parseFloat(amount);
+
     if (!numAmount || numAmount <= 0) {
       return res.status(400).json({ error: 'Valid payment amount is required.' });
     }
 
-    const transactionId = 'txn_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+    const keyId = process.env.RAZORPAY_KEY_ID;
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    const amountInPaise = Math.round(numAmount * 100);
+    const receipt = 'rcpt_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
 
-    // Development payment session payload (ready for Razorpay/Stripe payload swapping)
+    // If real Razorpay keys exist, call Razorpay REST API
+    if (keyId && keySecret && !keyId.includes('test_lightinmotion')) {
+      const authHeader = 'Basic ' + Buffer.from(`${keyId}:${keySecret}`).toString('base64');
+      const response = await fetch('https://api.razorpay.com/v1/orders', {
+        method: 'POST',
+        headers: {
+          'Authorization': authHeader,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          amount: amountInPaise,
+          currency,
+          receipt,
+          notes: orderNotes || { store: 'LIGHTINMOTION' }
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error?.description || 'Razorpay order creation failed.');
+      }
+
+      return res.json({
+        success: true,
+        orderId: data.id,
+        amount: data.amount,
+        currency: data.currency,
+        keyId,
+        receipt: data.receipt
+      });
+    }
+
+    // Dev / Test Mode fallback payload
+    const dummyOrderId = 'order_rzp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
     res.json({
       success: true,
-      transactionId,
-      amount: numAmount,
+      orderId: dummyOrderId,
+      amount: amountInPaise,
       currency,
-      provider: 'LIGHTINMOTION_TEST_GATEWAY',
-      keyId: 'rzp_test_lightinmotion_dev',
-      status: 'created'
+      keyId: keyId || 'rzp_test_lightinmotion',
+      receipt,
+      isTestMode: true
     });
   } catch (err) {
-    console.error('Payment intent error:', err);
-    res.status(500).json({ error: 'Payment initialization failed.' });
+    console.error('Razorpay Create Order Error:', err);
+    res.status(500).json({ error: err.message || 'Payment initialization failed.' });
   }
 });
 
-// Server-side payment verification
-router.post('/verify', (req, res) => {
+// Verify Razorpay Payment Signature
+router.post('/razorpay/verify-signature', (req, res) => {
   try {
-    const { transactionId, orderId, paymentStatus = 'success' } = req.body;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = req.body;
 
-    if (!transactionId) {
-      return res.status(400).json({ error: 'Transaction ID is required.' });
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+
+    if (keySecret) {
+      const body = razorpay_order_id + '|' + razorpay_payment_id;
+      const expectedSignature = crypto
+        .createHmac('sha256', keySecret)
+        .update(body.toString())
+        .digest('hex');
+
+      if (expectedSignature !== razorpay_signature) {
+        return res.status(400).json({ success: false, error: 'Invalid payment signature.' });
+      }
     }
 
-    const verified = paymentStatus === 'success';
-
-    if (orderId && verified) {
+    // Mark order as Paid in database if orderId is provided
+    if (orderId) {
       db.prepare(`
         UPDATE orders SET
           payment_status = 'Paid',
           updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).run(orderId);
+        WHERE id = ? OR order_number = ?
+      `).run(orderId, orderId);
     }
 
     res.json({
-      verified,
-      transactionId,
-      status: verified ? 'Paid' : 'Failed'
+      success: true,
+      verified: true,
+      paymentId: razorpay_payment_id,
+      orderId: razorpay_order_id,
+      status: 'Paid'
     });
   } catch (err) {
-    console.error('Payment verification error:', err);
-    res.status(500).json({ error: 'Payment verification failed.' });
+    console.error('Razorpay Signature Verification Error:', err);
+    res.status(500).json({ error: 'Signature verification failed.' });
   }
 });
 
