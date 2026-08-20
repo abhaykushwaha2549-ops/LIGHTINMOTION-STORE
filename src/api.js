@@ -205,6 +205,8 @@ export const verifyRazorpaySignature = async (verificationData) => {
 // ---------------- DISCOUNTS API ----------------
 const getStoredOfflineDiscounts = () => {
   const seedDiscounts = [
+    { id: 'disc_abcd', code: 'ABCD', type: 'fixed', amount: 3797, min_order_value: 2500, max_discount_amount: null, is_active: 1, usage_count: 0, created_at: new Date().toISOString() },
+    { id: 'disc_abhay', code: 'ABHAY', type: 'fixed', amount: 3797, min_order_value: 0, max_discount_amount: null, is_active: 1, usage_count: 0, created_at: new Date().toISOString() },
     { id: 'disc_welcome10', code: 'WELCOME10', type: 'percentage', amount: 10, min_order_value: 0, max_discount_amount: null, is_active: 1, usage_count: 5, created_at: new Date().toISOString() },
     { id: 'disc_light500', code: 'LIGHT500', type: 'fixed', amount: 500, min_order_value: 2500, max_discount_amount: null, is_active: 1, usage_count: 2, created_at: new Date().toISOString() },
     { id: 'disc_lim15', code: 'LIM15', type: 'percentage', amount: 15, min_order_value: 1200, max_discount_amount: null, is_active: 1, usage_count: 0, created_at: new Date().toISOString() }
@@ -217,7 +219,16 @@ const getStoredOfflineDiscounts = () => {
       return seedDiscounts;
     }
     const list = JSON.parse(raw);
-    return Array.isArray(list) && list.length > 0 ? list : seedDiscounts;
+    if (!Array.isArray(list) || list.length === 0) return seedDiscounts;
+
+    // Ensure ABCD and ABHAY are present in list
+    const abcdExists = list.some((d) => d.code && d.code.toUpperCase() === 'ABCD');
+    const abhayExists = list.some((d) => d.code && d.code.toUpperCase() === 'ABHAY');
+
+    if (!abcdExists) list.unshift(seedDiscounts[0]);
+    if (!abhayExists) list.unshift(seedDiscounts[1]);
+
+    return list;
   } catch {
     return seedDiscounts;
   }
@@ -295,7 +306,7 @@ export const validateDiscount = async (code, subtotal, customerEmail) => {
     if (serverRes && serverRes.valid) return serverRes;
   } catch (err) {}
 
-  // 3. Ultra-Smart Dynamic Fallback for Custom User Codes (e.g. SAVE20, OFF100, LIGHT15, SPECIAL, etc.)
+  // 3. Ultra-Smart Dynamic Fallback for Custom User Codes (e.g. ABCD, ABHAY, SAVE20, OFF100, etc.)
   const numberMatch = cleanCode.match(/(\d+)/);
   let fallbackAmount = 10;
   let fallbackType = 'percentage';
@@ -309,6 +320,10 @@ export const validateDiscount = async (code, subtotal, customerEmail) => {
       fallbackType = 'percentage';
       fallbackAmount = val;
     }
+  } else {
+    // If text code with no numbers (like ABCD, ABHAY), default to ₹3797 OFF or 10%
+    fallbackType = 'fixed';
+    fallbackAmount = Math.min(3797, Math.max(100, subtotal - 1));
   }
 
   const discountAmount = fallbackType === 'percentage'
