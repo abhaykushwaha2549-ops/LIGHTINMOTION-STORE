@@ -14,6 +14,7 @@ export default function Home() {
   const [products, setProducts] = useState([]);
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [lampGlowing, setLampGlowing] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -44,16 +45,28 @@ export default function Home() {
 
   return (
     <div className="home-page-root">
-      {/* Hero Banner Section */}
-      <section className="exact-hero-section">
+      {/* Hero Banner Section with Interactive Lamp Glow */}
+      <section
+        className="exact-hero-section"
+        onMouseEnter={() => setLampGlowing(true)}
+        onMouseLeave={() => setLampGlowing(false)}
+      >
         {/* Background Image / Overlay */}
         <div className="exact-hero-bg-wrap">
           <img
             src={hero.imageUrl || '/hero_hanging_lamp.png'}
             alt="LIGHTINMOTION Ambient Fixture"
-            className="exact-hero-image"
+            className={`exact-hero-image ${lampGlowing ? 'lamp-glowing' : ''}`}
           />
+
+          {/* Dissolve Gradient Overlay (Soft bottom dissolve into dark background) */}
           <div className="exact-hero-gradient-overlay" />
+
+          {/* Interactive Reactive Warm Lamp Glow Overlay */}
+          <div className={`reactive-lamp-glow-overlay ${lampGlowing ? 'active' : ''}`} />
+
+          {/* Cone Light Beam Projection */}
+          <div className={`lamp-flare-beam ${lampGlowing ? 'active' : ''}`} />
         </div>
 
         {/* Hero Content Box */}
@@ -82,6 +95,14 @@ export default function Home() {
                 <span>EXPLORE SETUPS</span>
               </Link>
             </div>
+          </div>
+
+          {/* Interactive Hint Indicator */}
+          <div
+            className={`lamp-interactive-hint ${lampGlowing ? 'active' : ''}`}
+            onMouseEnter={() => setLampGlowing(true)}
+          >
+            <span>✨ Move mouse to ignite ambient lamp glow</span>
           </div>
 
           {/* Carousel Pagination Dots at Bottom Center */}
@@ -142,9 +163,9 @@ export default function Home() {
                           Rs. {Number(p.price).toLocaleString('en-IN')}.00
                         </span>
 
-                        {p.compare_price && (
-                          <span className="exact-price-compare">
-                            Rs. {Number(p.compare_price).toLocaleString('en-IN')}.00
+                        {(p.compare_price || p.comparePrice) && (
+                          <span className="exact-price-original" style={{ textDecoration: 'line-through', color: '#71717a', fontSize: '0.8rem' }}>
+                            Rs. {Number(p.compare_price || p.comparePrice).toLocaleString('en-IN')}.00
                           </span>
                         )}
                       </div>
@@ -154,51 +175,6 @@ export default function Home() {
               })}
             </div>
           )}
-        </div>
-      </section>
-
-      {/* Trust & Guarantee Perks Bar */}
-      <section className="exact-perks-section">
-        <div className="exact-perks-container">
-          <div className="exact-perk-item">
-            <div className="perk-icon-wrap">
-              <Truck size={22} strokeWidth={1.75} />
-            </div>
-            <div className="perk-text-wrap">
-              <div className="perk-title">FREE SHIPPING</div>
-              <div className="perk-subtitle">On orders above Rs. 999</div>
-            </div>
-          </div>
-
-          <div className="exact-perk-item">
-            <div className="perk-icon-wrap">
-              <RotateCcw size={22} strokeWidth={1.75} />
-            </div>
-            <div className="perk-text-wrap">
-              <div className="perk-title">7 DAYS RETURN</div>
-              <div className="perk-subtitle">Hassle-free returns</div>
-            </div>
-          </div>
-
-          <div className="exact-perk-item">
-            <div className="perk-icon-wrap">
-              <ShieldCheck size={22} strokeWidth={1.75} />
-            </div>
-            <div className="perk-text-wrap">
-              <div className="perk-title">1 YEAR WARRANTY</div>
-              <div className="perk-subtitle">Quality you can trust</div>
-            </div>
-          </div>
-
-          <div className="exact-perk-item">
-            <div className="perk-icon-wrap">
-              <Lock size={22} strokeWidth={1.75} />
-            </div>
-            <div className="perk-text-wrap">
-              <div className="perk-title">SECURE PAYMENT</div>
-              <div className="perk-subtitle">100% safe & secure</div>
-            </div>
-          </div>
         </div>
       </section>
     </div>
