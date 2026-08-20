@@ -122,13 +122,12 @@ export default function Checkout() {
     setDiscountError('');
   };
 
-  // Construct Direct Standard UPI Intent URI for GPay, PhonePe, Paytm
-  const buildUpiIntentUri = () => {
+  // Construct Direct Standard UPI Intent URI for GPay, PhonePe, Paytm (NPCI P2P Compliant)
+  const buildUpiIntentUri = (scheme = 'upi') => {
     const cleanVpa = merchantUpiVpa.trim();
     const cleanName = merchantPayeeName.trim() || 'Sandhya Kushwaha';
-    const note = `LIGHTINMOTION Order`;
     const cleanAmount = grandTotal.toFixed(2);
-    return `upi://pay?pa=${encodeURIComponent(cleanVpa)}&pn=${encodeURIComponent(cleanName)}&am=${cleanAmount}&cu=INR&tn=${encodeURIComponent(note)}`;
+    return `${scheme}://pay?pa=${encodeURIComponent(cleanVpa)}&pn=${encodeURIComponent(cleanName)}&am=${cleanAmount}&cu=INR`;
   };
 
   // Finalize order creation after payment approval
@@ -225,7 +224,7 @@ export default function Checkout() {
 
       setPendingRzpOrder(rzpOrder);
 
-      const upiUrl = buildUpiIntentUri();
+      const upiUrl = buildUpiIntentUri('upi');
       setGeneratedUpiUri(upiUrl);
 
       // 1. Launch Google Pay / UPI App via deep link
@@ -247,11 +246,10 @@ export default function Checkout() {
     }
   };
 
-  // Relaunch Google Pay App
-  const handleRelaunchUpiApp = () => {
-    if (generatedUpiUri) {
-      window.location.href = generatedUpiUri;
-    }
+  // Relaunch Specific UPI App
+  const handleRelaunchUpiApp = (scheme = 'upi') => {
+    const url = buildUpiIntentUri(scheme);
+    window.location.href = url;
   };
 
   // Helper for Instant Test / Demo Approval
@@ -856,11 +854,11 @@ export default function Checkout() {
             </div>
 
             <h2 style={{ fontSize: '1.45rem', fontWeight: '800', color: '#fff', marginBottom: '8px' }}>
-              Google Pay App Opened
+              UPI App Authorization
             </h2>
 
             <p style={{ color: '#cbd5e1', fontSize: '0.88rem', lineHeight: 1.5, marginBottom: '22px' }}>
-              Please enter your 4/6-digit UPI PIN inside Google Pay to pay <strong style={{ color: '#38bdf8' }}>₹{grandTotal.toLocaleString('en-IN')}.00</strong>.
+              Please enter your 4/6-digit UPI PIN inside your payment app to pay <strong style={{ color: '#38bdf8' }}>₹{grandTotal.toLocaleString('en-IN')}.00</strong>.
             </p>
 
             {/* Status Indicator */}
@@ -894,14 +892,65 @@ export default function Checkout() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => handleRelaunchUpiApp('gpay')}
+                  style={{
+                    background: '#1e293b',
+                    border: '1px solid #3b82f6',
+                    color: '#fff',
+                    padding: '8px',
+                    borderRadius: '6px',
+                    fontSize: '0.75rem',
+                    fontWeight: '700',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Google Pay
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRelaunchUpiApp('phonepe')}
+                  style={{
+                    background: '#1e293b',
+                    border: '1px solid #8b5cf6',
+                    color: '#fff',
+                    padding: '8px',
+                    borderRadius: '6px',
+                    fontSize: '0.75rem',
+                    fontWeight: '700',
+                    cursor: 'pointer'
+                  }}
+                >
+                  PhonePe
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRelaunchUpiApp('paytmmp')}
+                  style={{
+                    background: '#1e293b',
+                    border: '1px solid #0284c7',
+                    color: '#fff',
+                    padding: '8px',
+                    borderRadius: '6px',
+                    fontSize: '0.75rem',
+                    fontWeight: '700',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Paytm
+                </button>
+              </div>
+
               <button
                 type="button"
-                onClick={handleRelaunchUpiApp}
+                onClick={() => handleRelaunchUpiApp('upi')}
                 className="btn-cart-outline"
-                style={{ width: '100%', justifyContent: 'center', padding: '12px' }}
+                style={{ width: '100%', justifyContent: 'center', padding: '10px' }}
               >
-                <RefreshCw size={16} />
-                <span>Re-open Google Pay App</span>
+                <RefreshCw size={14} />
+                <span>Re-open Any UPI App</span>
               </button>
 
               {/* Developer / Demo Bank Webhook Trigger */}
