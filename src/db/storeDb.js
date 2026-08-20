@@ -249,7 +249,41 @@ const DEFAULT_SETTINGS = {
   currency: 'Rs.',
   currencySymbol: '₹',
   contactEmail: 'support@lightinmotion.store',
-  phone: '+91 98765 43210'
+  phone: '+91 98765 43210',
+  showcaseMedia: [
+    {
+      id: 'showcase_1',
+      title: 'Immersive Desk Setup with Barlights',
+      type: 'image',
+      url: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1200&q=80',
+      caption: 'RGB Barlights synced with mechanical keyboard and ultrawide monitor setup.',
+      category: 'Desk Setup'
+    },
+    {
+      id: 'showcase_2',
+      title: 'Dynamic RGB Flex Strip Glow',
+      type: 'video',
+      url: 'https://assets.mixkit.co/videos/preview/mixkit-glowing-led-strip-on-a-desk-42171-large.mp4',
+      caption: 'Smart Neon Flex Strip bendable backlighting behind desk edge.',
+      category: 'Videos'
+    },
+    {
+      id: 'showcase_3',
+      title: 'TV Backlight Ambient Living Room',
+      type: 'image',
+      url: 'https://images.unsplash.com/photo-1593784991095-a205069470b6?auto=format&fit=crop&w=1200&q=80',
+      caption: 'Smart TV Ambient Backlight bar reacting to movie scenes.',
+      category: 'Living Room'
+    },
+    {
+      id: 'showcase_4',
+      title: 'Minimalist Corner Atmosphere Floor Lamp',
+      type: 'image',
+      url: 'https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?auto=format&fit=crop&w=1200&q=80',
+      caption: 'Warm Nordic standing linear lamp in studio corner.',
+      category: 'Ambient Bar'
+    }
+  ]
 };
 
 function openDatabase() {
