@@ -21,7 +21,8 @@ export default function Settings() {
   const [payment, setPayment] = useState({
     razorpayKeyId: 'rzp_test_lightinmotion',
     razorpayKeySecret: '••••••••••••••••',
-    merchantUpiVpa: 'lightinmotion@upi',
+    merchantUpiVpa: 'shandhykushwaha@okhdfcbank',
+    merchantPayeeName: 'Sandhya Kushwaha',
     enableUpi: true,
     enableQr: true,
     enableCards: true,
@@ -157,17 +158,29 @@ export default function Settings() {
             <span>Merchant Payment Gateway Configuration (UPI, GPay, Razorpay Keys)</span>
           </h3>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '16px' }}>
             <div className="admin-form-group">
-              <label className="admin-label">Merchant Bank UPI VPA / ID</label>
+              <label className="admin-label">Merchant UPI VPA / ID</label>
               <input
                 type="text"
                 value={payment.merchantUpiVpa}
                 onChange={(e) => setPayment({ ...payment, merchantUpiVpa: e.target.value })}
-                placeholder="yourname@okaxis or bank@upi"
+                placeholder="shandhykushwaha@okhdfcbank"
                 className="admin-input"
               />
-              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Your registered GPay/Paytm UPI ID to receive direct money in your bank.</span>
+              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Registered UPI ID (e.g. shandhykushwaha@okhdfcbank).</span>
+            </div>
+
+            <div className="admin-form-group">
+              <label className="admin-label">Bank Account Holder Name</label>
+              <input
+                type="text"
+                value={payment.merchantPayeeName}
+                onChange={(e) => setPayment({ ...payment, merchantPayeeName: e.target.value })}
+                placeholder="Sandhya Kushwaha"
+                className="admin-input"
+              />
+              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Exact Bank Account Name (for NPCI verification).</span>
             </div>
 
             <div className="admin-form-group">
@@ -191,7 +204,7 @@ export default function Settings() {
                 placeholder="Key Secret"
                 className="admin-input"
               />
-              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Used for server-side HMAC SHA-256 bank verification.</span>
+              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Used for server HMAC SHA-256 bank verification.</span>
             </div>
           </div>
 
