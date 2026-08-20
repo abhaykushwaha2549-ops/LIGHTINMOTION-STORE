@@ -87,7 +87,7 @@ export default function Checkout() {
   const shippingCost = currentSubtotal >= freeShippingThreshold || currentSubtotal === 0 ? 0 : standardShippingCharge;
   const grandTotal = Math.max(0, currentSubtotal - currentDiscountAmount + shippingCost);
 
-  const merchantUpiVpa = settings?.payment?.merchantUpiVpa || 'paytmqr123@paytm';
+  const merchantUpiVpa = (settings?.payment?.merchantUpiVpa || 'shandhykushwaha@okhdfcbank').trim();
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -123,9 +123,10 @@ export default function Checkout() {
 
   // Construct Direct Standard UPI Intent URI for GPay, PhonePe, Paytm
   const buildUpiIntentUri = () => {
-    const note = `LIGHTINMOTION Order ${formData.fullName ? 'for ' + formData.fullName : ''}`;
+    const cleanVpa = merchantUpiVpa.trim();
+    const note = `LIGHTINMOTION Order`;
     const cleanAmount = grandTotal.toFixed(2);
-    return `upi://pay?pa=${encodeURIComponent(merchantUpiVpa)}&pn=${encodeURIComponent('LIGHTINMOTION')}&am=${cleanAmount}&cu=INR&tn=${encodeURIComponent(note)}`;
+    return `upi://pay?pa=${encodeURIComponent(cleanVpa)}&pn=${encodeURIComponent('LIGHTINMOTION')}&am=${cleanAmount}&cu=INR&tn=${encodeURIComponent(note)}`;
   };
 
   // Finalize order creation after payment approval
@@ -871,8 +872,8 @@ export default function Checkout() {
               fontSize: '0.82rem'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <span style={{ color: '#94a3b8' }}>Merchant:</span>
-                <strong style={{ color: '#fff' }}>LIGHTINMOTION</strong>
+                <span style={{ color: '#94a3b8' }}>Merchant VPA:</span>
+                <strong style={{ color: '#fff', fontFamily: 'var(--font-mono)' }}>{merchantUpiVpa}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                 <span style={{ color: '#94a3b8' }}>Amount:</span>
