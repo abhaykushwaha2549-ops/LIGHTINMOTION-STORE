@@ -21,6 +21,7 @@ export default function Settings() {
   const [payment, setPayment] = useState({
     razorpayKeyId: 'rzp_test_lightinmotion',
     razorpayKeySecret: '••••••••••••••••',
+    merchantUpiVpa: 'lightinmotion@upi',
     enableUpi: true,
     enableQr: true,
     enableCards: true,
@@ -59,7 +60,7 @@ export default function Settings() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>
           <h1 className="admin-page-title">Store Settings</h1>
-          <p className="admin-page-subtitle">Configure store contact details, Razorpay payment gateway, shipping rules, and fulfillment policies.</p>
+          <p className="admin-page-subtitle">Configure store contact details, Razorpay payment gateway, Merchant UPI VPA, shipping rules, and fulfillment policies.</p>
         </div>
 
         <button
@@ -149,14 +150,26 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Razorpay Payment Gateway Settings */}
+        {/* Razorpay & Merchant UPI Gateway Settings */}
         <div className="admin-card" style={{ gridColumn: 'span 2' }}>
           <h3 className="admin-card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <CreditCard size={18} color="#2563eb" />
-            <span>Razorpay Payment Gateway Configuration (UPI, GPay, QR, Cards)</span>
+            <span>Merchant Payment Gateway Configuration (UPI, GPay, Razorpay Keys)</span>
           </h3>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+            <div className="admin-form-group">
+              <label className="admin-label">Merchant Bank UPI VPA / ID</label>
+              <input
+                type="text"
+                value={payment.merchantUpiVpa}
+                onChange={(e) => setPayment({ ...payment, merchantUpiVpa: e.target.value })}
+                placeholder="yourname@okaxis or bank@upi"
+                className="admin-input"
+              />
+              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Your registered GPay/Paytm UPI ID to receive direct money in your bank.</span>
+            </div>
+
             <div className="admin-form-group">
               <label className="admin-label">Razorpay Key ID</label>
               <input
@@ -178,7 +191,7 @@ export default function Settings() {
                 placeholder="Key Secret"
                 className="admin-input"
               />
-              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Used for HMAC SHA-256 server verification.</span>
+              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Used for server-side HMAC SHA-256 bank verification.</span>
             </div>
           </div>
 
