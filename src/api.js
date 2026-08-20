@@ -295,7 +295,7 @@ export const validateDiscount = async (code, subtotal, customerEmail) => {
     if (serverRes && serverRes.valid) return serverRes;
     if (serverRes && serverRes.error) throw new Error(serverRes.error);
   } catch (err) {
-    if (err.message && !err.message.includes('status 500') && !err.message.includes('Failed to fetch')) {
+    if (err.message && !err.message.includes('Request failed with status') && !err.message.includes('Failed to fetch') && !err.message.includes('status 500')) {
       throw err;
     }
   }
