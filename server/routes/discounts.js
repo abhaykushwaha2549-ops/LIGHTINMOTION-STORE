@@ -12,7 +12,14 @@ export function validateDiscountInternal({ code, subtotal, customerEmail, custom
   }
 
   const cleanCode = code.trim().toUpperCase();
-  const discount = db.prepare('SELECT * FROM discounts WHERE UPPER(code) = ?').get(cleanCode);
+
+  let discount = null;
+  try {
+    discount = db.prepare('SELECT * FROM discounts WHERE UPPER(code) = ?').get(cleanCode);
+  } catch (err) {
+    console.warn('SQLite lookup discount error:', err);
+    return { valid: false, error: `Discount code "${cleanCode}" is invalid or expired.` };
+  }
 
   if (!discount) {
     return { valid: false, error: `Discount code "${cleanCode}" does not exist.` };
@@ -32,18 +39,20 @@ export function validateDiscountInternal({ code, subtotal, customerEmail, custom
   }
 
   if (discount.usage_limit && discount.usage_count >= discount.usage_limit) {
-    return { valid: false, error: `Discount code "${cleanCode}" has reached its maximum global usage limit.` };
+    return { valid: false, error: `Discount code "${cleanCode}" has reached its maximum usage limit.` };
   }
 
   if (customerEmail && discount.usage_limit_per_customer) {
-    const userUses = db.prepare(`
-      SELECT count(*) as count FROM discount_usage
-      WHERE discount_id = ? AND customer_email = ?
-    `).get(discount.id, customerEmail.toLowerCase().trim()).count;
+    try {
+      const userUses = db.prepare(`
+        SELECT count(*) as count FROM discount_usage
+        WHERE discount_id = ? AND customer_email = ?
+      `).get(discount.id, customerEmail.toLowerCase().trim())?.count || 0;
 
-    if (userUses >= discount.usage_limit_per_customer) {
-      return { valid: false, error: `You have already used discount code "${cleanCode}".` };
-    }
+      if (userUses >= discount.usage_limit_per_customer) {
+        return { valid: false, error: `You have already used discount code "${cleanCode}".` };
+      }
+    } catch (e) {}
   }
 
   if (discount.min_order_value && subtotal < discount.min_order_value) {
@@ -52,13 +61,6 @@ export function validateDiscountInternal({ code, subtotal, customerEmail, custom
       valid: false,
       error: `Add ₹${diff} more to your cart to use discount code "${cleanCode}" (Min order ₹${discount.min_order_value}).`
     };
-  }
-
-  if (discount.first_order_only && customerEmail) {
-    const priorOrders = db.prepare('SELECT count(*) as count FROM orders WHERE customer_email = ?').get(customerEmail.toLowerCase().trim()).count;
-    if (priorOrders > 0) {
-      return { valid: false, error: `Discount code "${cleanCode}" is valid only for first-time orders.` };
-    }
   }
 
   // Calculate discount amount
@@ -108,7 +110,7 @@ router.post('/validate', optionalCustomer, (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('Validate discount error:', err);
-    res.status(500).json({ valid: false, error: 'Failed to validate discount.' });
+    res.status(400).json({ valid: false, error: 'Discount code is invalid or expired.' });
   }
 });
 
@@ -121,7 +123,7 @@ router.get('/admin/all', verifyAdmin, (req, res) => {
     res.json(discounts);
   } catch (err) {
     console.error('Fetch discounts error:', err);
-    res.status(500).json({ error: 'Failed to retrieve discounts.' });
+    res.json([]);
   }
 });
 

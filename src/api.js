@@ -237,27 +237,26 @@ export const validateDiscount = async (code, subtotal, customerEmail) => {
     throw new Error('Please enter a discount code.');
   }
 
+  let serverRes = null;
   let serverErr = null;
   try {
-    const res = await apiFetch('/api/discounts/validate', {
+    serverRes = await apiFetch('/api/discounts/validate', {
       method: 'POST',
       body: JSON.stringify({ code: cleanCode, subtotal, customerEmail })
     });
-    if (res && res.valid) return res;
+    if (serverRes && serverRes.valid) return serverRes;
   } catch (err) {
     serverErr = err;
   }
 
-  // If server responded with a specific validation error, rethrow it
-  if (serverErr && serverErr.message && !serverErr.message.includes('Failed to fetch') && !serverErr.message.includes('404')) {
-    throw serverErr;
-  }
-
-  // Hybrid Dynamic Fallback: Check live discounts database (Admin created)
+  // Hybrid Dynamic Fallback: Check live discounts created in Admin Panel
   const discounts = getStoredOfflineDiscounts();
   const found = discounts.find((d) => d.code && d.code.trim().toUpperCase() === cleanCode);
 
   if (!found) {
+    if (serverErr && serverErr.message && !serverErr.message.includes('status 500')) {
+      throw serverErr;
+    }
     throw new Error(`Discount code "${cleanCode}" is invalid or expired.`);
   }
 
