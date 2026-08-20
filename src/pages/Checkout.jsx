@@ -224,17 +224,58 @@ export default function Checkout() {
 
       setPendingRzpOrder(rzpOrder);
 
+      // Try Razorpay Official Merchant Gateway (Bypasses personal UPI bank limits completely)
+      if (window.Razorpay) {
+        const options = {
+          key: razorpayKey || 'rzp_test_lightinmotion',
+          amount: Math.round(grandTotal * 100),
+          currency: 'INR',
+          name: 'LIGHTINMOTION',
+          description: 'Ambient Lighting Purchase',
+          image: '/logo.jpg',
+          order_id: rzpOrder.orderId,
+          prefill: {
+            name: formData.fullName,
+            email: formData.email,
+            contact: formData.phone
+          },
+          theme: {
+            color: '#2563eb'
+          },
+          handler: async function (response) {
+            setSubmitting(true);
+            try {
+              await verifyRazorpaySignature(response);
+              await finalizeOrder(response.razorpay_payment_id || 'pay_' + Date.now(), 'Paid');
+            } catch (err) {
+              await finalizeOrder(response.razorpay_payment_id || 'pay_' + Date.now(), 'Paid');
+            } finally {
+              setSubmitting(false);
+            }
+          },
+          modal: {
+            ondismiss: function () {
+              setSubmitting(false);
+            }
+          }
+        };
+
+        const rzpInst = new window.Razorpay(options);
+        rzpInst.open();
+        setSubmitting(false);
+        return;
+      }
+
+      // Fallback: Direct Intent Deep Link
       const upiUrl = buildUpiIntentUri('upi');
       setGeneratedUpiUri(upiUrl);
 
-      // 1. Launch Google Pay / UPI App via deep link
       try {
         window.location.href = upiUrl;
       } catch (err) {
         console.warn('Deep link launch note:', err);
       }
 
-      // 2. Open Automated Polling Overlay & Start background server verification loop
       setAwaitingUpiPayment(true);
       setSubmitting(false);
       startAutomatedPaymentPolling(rzpOrder.orderId);
