@@ -14,7 +14,6 @@ export default function Home() {
   const [products, setProducts] = useState([]);
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [lampGlowing, setLampGlowing] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -45,25 +44,18 @@ export default function Home() {
 
   return (
     <div className="home-page-root">
-      {/* Hero Banner Section with Interactive Lamp Glow */}
-      <section
-        className="exact-hero-section"
-        onMouseEnter={() => setLampGlowing(true)}
-        onMouseLeave={() => setLampGlowing(false)}
-      >
+      {/* Hero Banner Section */}
+      <section className="exact-hero-section">
         {/* Background Image / Overlay */}
         <div className="exact-hero-bg-wrap">
           <img
             src={hero.imageUrl || '/hero_hanging_lamp.png'}
             alt="LIGHTINMOTION Ambient Fixture"
-            className={`exact-hero-image ${lampGlowing ? 'lamp-glowing' : ''}`}
+            className="exact-hero-image"
           />
 
           {/* Dissolve Gradient Overlay (Soft bottom dissolve into dark background) */}
           <div className="exact-hero-gradient-overlay" />
-
-          {/* Pure Clean Warm Lamp Glow */}
-          <div className={`clean-lamp-glow ${lampGlowing ? 'active' : ''}`} />
         </div>
 
         {/* Hero Content Box */}
