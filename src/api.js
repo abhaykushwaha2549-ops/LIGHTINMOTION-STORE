@@ -237,65 +237,62 @@ export const validateDiscount = async (code, subtotal, customerEmail) => {
     throw new Error('Please enter a discount code.');
   }
 
-  let serverRes = null;
-  let serverErr = null;
+  // 1. Check client-side database (where admin-created discounts are stored instantly)
+  const discounts = getStoredOfflineDiscounts();
+  const found = discounts.find((d) => d.code && d.code.trim().toUpperCase() === cleanCode);
+
+  if (found) {
+    if (!found.is_active) {
+      throw new Error(`Discount code "${cleanCode}" is currently disabled.`);
+    }
+
+    const now = new Date();
+    if (found.expiry_date && new Date(found.expiry_date) < now) {
+      throw new Error(`Discount code "${cleanCode}" has expired.`);
+    }
+
+    if (found.min_order_value && subtotal < Number(found.min_order_value)) {
+      const diff = (Number(found.min_order_value) - subtotal).toFixed(2);
+      throw new Error(`Add ₹${diff} more to your cart to use discount code "${cleanCode}" (Min order ₹${found.min_order_value}).`);
+    }
+
+    let discountAmount = 0;
+    if (found.type === 'percentage') {
+      discountAmount = (subtotal * Number(found.amount)) / 100;
+      if (found.max_discount_amount) {
+        discountAmount = Math.min(discountAmount, Number(found.max_discount_amount));
+      }
+    } else {
+      discountAmount = Number(found.amount);
+    }
+
+    discountAmount = Math.min(discountAmount, subtotal);
+    discountAmount = Math.round(discountAmount * 100) / 100;
+
+    return {
+      valid: true,
+      discountId: found.id,
+      code: found.code,
+      type: found.type,
+      rate: Number(found.amount),
+      discountAmount,
+      finalSubtotal: Math.max(0, subtotal - discountAmount)
+    };
+  }
+
+  // 2. Fallback check live backend server
   try {
-    serverRes = await apiFetch('/api/discounts/validate', {
+    const serverRes = await apiFetch('/api/discounts/validate', {
       method: 'POST',
       body: JSON.stringify({ code: cleanCode, subtotal, customerEmail })
     });
     if (serverRes && serverRes.valid) return serverRes;
+    if (serverRes && serverRes.error) throw new Error(serverRes.error);
   } catch (err) {
-    serverErr = err;
+    throw new Error(err.message || `Discount code "${cleanCode}" is invalid or expired.`);
   }
 
-  // Hybrid Dynamic Fallback: Check live discounts created in Admin Panel
-  const discounts = getStoredOfflineDiscounts();
-  const found = discounts.find((d) => d.code && d.code.trim().toUpperCase() === cleanCode);
-
-  if (!found) {
-    if (serverErr && serverErr.message && !serverErr.message.includes('status 500')) {
-      throw serverErr;
-    }
-    throw new Error(`Discount code "${cleanCode}" is invalid or expired.`);
-  }
-
-  if (!found.is_active) {
-    throw new Error(`Discount code "${cleanCode}" is currently disabled.`);
-  }
-
-  const now = new Date();
-  if (found.expiry_date && new Date(found.expiry_date) < now) {
-    throw new Error(`Discount code "${cleanCode}" has expired.`);
-  }
-
-  if (found.min_order_value && subtotal < Number(found.min_order_value)) {
-    const diff = (Number(found.min_order_value) - subtotal).toFixed(2);
-    throw new Error(`Add ₹${diff} more to your cart to use discount code "${cleanCode}" (Min order ₹${found.min_order_value}).`);
-  }
-
-  let discountAmount = 0;
-  if (found.type === 'percentage') {
-    discountAmount = (subtotal * Number(found.amount)) / 100;
-    if (found.max_discount_amount) {
-      discountAmount = Math.min(discountAmount, Number(found.max_discount_amount));
-    }
-  } else {
-    discountAmount = Number(found.amount);
-  }
-
-  discountAmount = Math.min(discountAmount, subtotal);
-  discountAmount = Math.round(discountAmount * 100) / 100;
-
-  return {
-    valid: true,
-    discountId: found.id,
-    code: found.code,
-    type: found.type,
-    rate: Number(found.amount),
-    discountAmount,
-    finalSubtotal: Math.max(0, subtotal - discountAmount)
-  };
+  throw new Error(`Discount code "${cleanCode}" is invalid or expired.`);
 };
 
 export const adminGetDiscounts = async () => {
@@ -304,8 +301,8 @@ export const adminGetDiscounts = async () => {
     const serverList = await apiFetch('/api/discounts/admin/all', { isAdmin: true });
     if (Array.isArray(serverList)) {
       const mergedMap = new Map();
-      localList.forEach((d) => mergedMap.set(d.code.toUpperCase(), d));
-      serverList.forEach((d) => mergedMap.set(d.code.toUpperCase(), d));
+      serverList.forEach((d) => { if (d && d.code) mergedMap.set(d.code.toUpperCase(), d); });
+      localList.forEach((d) => { if (d && d.code) mergedMap.set(d.code.toUpperCase(), d); });
       const merged = Array.from(mergedMap.values());
       saveOfflineDiscounts(merged);
       return merged;
