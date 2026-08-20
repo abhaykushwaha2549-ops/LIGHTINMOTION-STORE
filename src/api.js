@@ -237,9 +237,15 @@ export const validateDiscount = async (code, subtotal, customerEmail) => {
     throw new Error('Please enter a discount code.');
   }
 
-  // 1. Check client-side database (where admin-created discounts are stored instantly)
-  const discounts = getStoredOfflineDiscounts();
-  const found = discounts.find((d) => d.code && d.code.trim().toUpperCase() === cleanCode);
+  // 1. Fetch latest merged discounts list (Server + LocalStorage)
+  let allDiscounts = [];
+  try {
+    allDiscounts = await adminGetDiscounts();
+  } catch (e) {
+    allDiscounts = getStoredOfflineDiscounts();
+  }
+
+  const found = allDiscounts.find((d) => d.code && d.code.trim().toUpperCase() === cleanCode);
 
   if (found) {
     if (!found.is_active) {
@@ -289,7 +295,9 @@ export const validateDiscount = async (code, subtotal, customerEmail) => {
     if (serverRes && serverRes.valid) return serverRes;
     if (serverRes && serverRes.error) throw new Error(serverRes.error);
   } catch (err) {
-    throw new Error(err.message || `Discount code "${cleanCode}" is invalid or expired.`);
+    if (err.message && !err.message.includes('status 500') && !err.message.includes('Failed to fetch')) {
+      throw err;
+    }
   }
 
   throw new Error(`Discount code "${cleanCode}" is invalid or expired.`);
