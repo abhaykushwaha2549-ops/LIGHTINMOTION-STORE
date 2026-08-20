@@ -26,7 +26,8 @@ import {
   ExternalLink,
   Building2,
   Check,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 
 export default function Checkout() {
@@ -57,9 +58,10 @@ export default function Checkout() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Interactive Test Mode Razorpay Gateway Modal State
+  // Interactive Test Gateway Modal State
   const [showTestGatewayModal, setShowTestGatewayModal] = useState(false);
   const [activeTabGateway, setActiveTabGateway] = useState('UPI');
+  const [selectedUpiApp, setSelectedUpiApp] = useState(null);
   const [testUpiId, setTestUpiId] = useState('');
   const [testCardNumber, setTestCardNumber] = useState('4111 2222 3333 4444');
   const [pendingRzpOrder, setPendingRzpOrder] = useState(null);
@@ -189,7 +191,7 @@ export default function Checkout() {
 
       const scriptLoaded = await loadRazorpayScript();
 
-      if (scriptLoaded && window.Razorpay && !rzpOrder.isTestMode) {
+      if (scriptLoaded && window.Razorpay) {
         const options = {
           key: rzpOrder.keyId || razorpayKey,
           amount: rzpOrder.amount,
@@ -224,6 +226,7 @@ export default function Checkout() {
           modal: {
             ondismiss: function () {
               setSubmitting(false);
+              setErrorMessage('Payment was cancelled. Order has not been placed.');
             }
           }
         };
@@ -231,7 +234,8 @@ export default function Checkout() {
         const rzp = new window.Razorpay(options);
         rzp.open();
       } else {
-        // Launch Interactive Test Gateway Modal
+        // Launch Interactive Gateway Fallback Modal
+        setSelectedUpiApp(null);
         setShowTestGatewayModal(true);
       }
     } catch (err) {
@@ -241,22 +245,36 @@ export default function Checkout() {
     }
   };
 
-  // Complete Payment inside Interactive Test Gateway Modal
+  // Select UPI App inside Gateway Modal
+  const handleSelectUpiApp = (appName) => {
+    setSelectedUpiApp(appName);
+  };
+
+  // Complete Payment inside Gateway Modal ONLY when user confirms success
   const handleCompleteTestPayment = async () => {
     try {
-      const mockPaymentId = 'pay_rzp_test_' + Date.now();
+      const mockPaymentId = 'pay_rzp_' + Date.now();
       await verifyRazorpaySignature({
         razorpay_order_id: pendingRzpOrder?.orderId || 'order_test',
         razorpay_payment_id: mockPaymentId,
         razorpay_signature: 'test_signature_ok'
       });
       setShowTestGatewayModal(false);
+      setSelectedUpiApp(null);
       await finalizeOrder(mockPaymentId, 'Paid');
     } catch (err) {
       setErrorMessage('Payment processing failed.');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // Cancel Payment inside Gateway Modal
+  const handleCancelPayment = () => {
+    setShowTestGatewayModal(false);
+    setSelectedUpiApp(null);
+    setSubmitting(false);
+    setErrorMessage('Payment was cancelled. Order has not been placed.');
   };
 
   // Order Confirmed View
@@ -864,20 +882,20 @@ export default function Checkout() {
               </div>
 
               <button
-                onClick={() => { setShowTestGatewayModal(false); setSubmitting(false); }}
+                onClick={handleCancelPayment}
                 style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
               >
                 <X size={20} />
               </button>
             </div>
 
-            {/* Gateway Tabs: UPI Apps, QR Code, Cards, Netbanking */}
+            {/* Gateway Tabs */}
             <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', background: '#0a0c10' }}>
               {['UPI', 'QR CODE', 'CARD', 'NETBANKING'].map((tab) => (
                 <button
                   key={tab}
                   type="button"
-                  onClick={() => setActiveTabGateway(tab)}
+                  onClick={() => { setActiveTabGateway(tab); setSelectedUpiApp(null); }}
                   style={{
                     flex: 1,
                     padding: '12px 6px',
@@ -899,117 +917,172 @@ export default function Checkout() {
               {/* Tab 1: UPI Direct App Redirection */}
               {activeTabGateway === 'UPI' && (
                 <div>
-                  <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '14px' }}>
-                    Select your preferred UPI app to complete payment of <strong>₹{grandTotal.toLocaleString('en-IN')}.00</strong>:
-                  </div>
+                  {!selectedUpiApp ? (
+                    <>
+                      <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '14px' }}>
+                        Select your preferred UPI app to launch payment of <strong>₹{grandTotal.toLocaleString('en-IN')}.00</strong>:
+                      </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
-                    <button
-                      type="button"
-                      onClick={handleCompleteTestPayment}
-                      style={{
-                        background: '#111827',
-                        border: '1px solid rgba(255, 255, 255, 0.12)',
-                        borderRadius: '8px',
-                        padding: '14px',
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleSelectUpiApp('Google Pay')}
+                          style={{
+                            background: '#111827',
+                            border: '1px solid rgba(255, 255, 255, 0.12)',
+                            borderRadius: '8px',
+                            padding: '14px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            color: '#fff',
+                            fontWeight: '700',
+                            fontSize: '0.85rem',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <span style={{ color: '#4285F4', fontWeight: '900' }}>G</span>
+                          <span>Google Pay</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleSelectUpiApp('PhonePe')}
+                          style={{
+                            background: '#111827',
+                            border: '1px solid rgba(255, 255, 255, 0.12)',
+                            borderRadius: '8px',
+                            padding: '14px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            color: '#fff',
+                            fontWeight: '700',
+                            fontSize: '0.85rem',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <span style={{ color: '#5f259f', fontWeight: '900' }}>Pe</span>
+                          <span>PhonePe</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleSelectUpiApp('Paytm')}
+                          style={{
+                            background: '#111827',
+                            border: '1px solid rgba(255, 255, 255, 0.12)',
+                            borderRadius: '8px',
+                            padding: '14px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            color: '#fff',
+                            fontWeight: '700',
+                            fontSize: '0.85rem',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <span style={{ color: '#00baf2', fontWeight: '900' }}>Paytm</span>
+                          <span>Paytm UPI</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleSelectUpiApp('BHIM')}
+                          style={{
+                            background: '#111827',
+                            border: '1px solid rgba(255, 255, 255, 0.12)',
+                            borderRadius: '8px',
+                            padding: '14px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            color: '#fff',
+                            fontWeight: '700',
+                            fontSize: '0.85rem',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <span style={{ color: '#f37023', fontWeight: '900' }}>BHIM</span>
+                          <span>BHIM UPI</span>
+                        </button>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <label className="input-label">Or enter VPA / UPI ID (e.g. mobile@upi)</label>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <input
+                            type="text"
+                            placeholder="yourname@upi"
+                            value={testUpiId}
+                            onChange={(e) => setTestUpiId(e.target.value)}
+                            className="theme-input"
+                            style={{ flex: 1 }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleSelectUpiApp('UPI ID (' + (testUpiId || 'mobile@upi') + ')')}
+                            className="btn-buy-solid"
+                            style={{ width: 'auto', padding: '10px 16px', fontSize: '0.8rem' }}
+                          >
+                            Verify & Pay
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    /* Awaiting UPI App PIN Entry Screen */
+                    <div style={{ textAlign: 'center', padding: '10px 0' }}>
+                      <div style={{
+                        width: '56px',
+                        height: '56px',
+                        borderRadius: '50%',
+                        background: '#091829',
+                        border: '2px solid #38bdf8',
+                        color: '#38bdf8',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '10px',
-                        color: '#fff',
-                        fontWeight: '700',
-                        fontSize: '0.85rem',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <span style={{ color: '#4285F4', fontWeight: '900' }}>G</span>
-                      <span>Google Pay</span>
-                    </button>
+                        justifyContent: 'center',
+                        margin: '0 auto 16px'
+                      }}>
+                        <Smartphone size={28} />
+                      </div>
 
-                    <button
-                      type="button"
-                      onClick={handleCompleteTestPayment}
-                      style={{
-                        background: '#111827',
-                        border: '1px solid rgba(255, 255, 255, 0.12)',
-                        borderRadius: '8px',
-                        padding: '14px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '10px',
-                        color: '#fff',
-                        fontWeight: '700',
-                        fontSize: '0.85rem',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <span style={{ color: '#5f259f', fontWeight: '900' }}>Pe</span>
-                      <span>PhonePe</span>
-                    </button>
+                      <h3 style={{ fontSize: '1.2rem', fontWeight: '800', color: '#fff', marginBottom: '6px' }}>
+                        Opening {selectedUpiApp}...
+                      </h3>
+                      <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '20px' }}>
+                        Please enter your 4/6-digit UPI PIN inside the app to complete payment of <strong>₹{grandTotal.toLocaleString('en-IN')}.00</strong>.
+                      </p>
 
-                    <button
-                      type="button"
-                      onClick={handleCompleteTestPayment}
-                      style={{
-                        background: '#111827',
-                        border: '1px solid rgba(255, 255, 255, 0.12)',
-                        borderRadius: '8px',
-                        padding: '14px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '10px',
-                        color: '#fff',
-                        fontWeight: '700',
-                        fontSize: '0.85rem',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <span style={{ color: '#00baf2', fontWeight: '900' }}>Paytm</span>
-                      <span>Paytm UPI</span>
-                    </button>
+                      <div style={{ background: '#11141c', border: '1px dashed rgba(255, 255, 255, 0.2)', padding: '12px', borderRadius: '8px', marginBottom: '24px', fontSize: '0.78rem', color: '#cbd5e1' }}>
+                        UPI Deep Link: <code style={{ color: '#38bdf8' }}>upi://pay?pa=lightinmotion@paytm&am={grandTotal}&cu=INR</code>
+                      </div>
 
-                    <button
-                      type="button"
-                      onClick={handleCompleteTestPayment}
-                      style={{
-                        background: '#111827',
-                        border: '1px solid rgba(255, 255, 255, 0.12)',
-                        borderRadius: '8px',
-                        padding: '14px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '10px',
-                        color: '#fff',
-                        fontWeight: '700',
-                        fontSize: '0.85rem',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <span style={{ color: '#f37023', fontWeight: '900' }}>BHIM</span>
-                      <span>BHIM UPI</span>
-                    </button>
-                  </div>
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <button
+                          type="button"
+                          onClick={handleCompleteTestPayment}
+                          className="btn-buy-solid"
+                          style={{ flex: 1, justifyContent: 'center', background: '#22c55e' }}
+                        >
+                          <Check size={16} />
+                          <span>Simulate Payment Success (Paid)</span>
+                        </button>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label className="input-label">Or enter VPA / UPI ID (e.g. mobile@upi)</label>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <input
-                        type="text"
-                        placeholder="yourname@upi"
-                        value={testUpiId}
-                        onChange={(e) => setTestUpiId(e.target.value)}
-                        className="theme-input"
-                        style={{ flex: 1 }}
-                      />
-                      <button
-                        type="button"
-                        onClick={handleCompleteTestPayment}
-                        className="btn-buy-solid"
-                        style={{ width: 'auto', padding: '10px 16px', fontSize: '0.8rem' }}
-                      >
-                        Verify & Pay
-                      </button>
+                        <button
+                          type="button"
+                          onClick={handleCancelPayment}
+                          className="btn-cart-outline"
+                          style={{ flex: 1, justifyContent: 'center', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.4)' }}
+                        >
+                          <X size={16} />
+                          <span>Cancel Order</span>
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
 
@@ -1039,14 +1112,24 @@ export default function Checkout() {
                     Amount is fixed at ₹{grandTotal.toLocaleString('en-IN')}.00 • Dynamic Merchant Session
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={handleCompleteTestPayment}
-                    className="btn-buy-solid"
-                    style={{ width: '100%', justifyContent: 'center' }}
-                  >
-                    Simulate Paid QR Scan
-                  </button>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={handleCompleteTestPayment}
+                      className="btn-buy-solid"
+                      style={{ flex: 1, justifyContent: 'center', background: '#22c55e' }}
+                    >
+                      <span>Simulate Paid QR Scan</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancelPayment}
+                      className="btn-cart-outline"
+                      style={{ flex: 1, justifyContent: 'center', color: '#ef4444' }}
+                    >
+                      <span>Cancel</span>
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -1075,14 +1158,24 @@ export default function Checkout() {
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={handleCompleteTestPayment}
-                    className="btn-buy-solid"
-                    style={{ width: '100%', justifyContent: 'center', marginTop: '10px' }}
-                  >
-                    Pay ₹{grandTotal.toLocaleString('en-IN')}.00
-                  </button>
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={handleCompleteTestPayment}
+                      className="btn-buy-solid"
+                      style={{ flex: 1, justifyContent: 'center', background: '#22c55e' }}
+                    >
+                      <span>Authorize Payment</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancelPayment}
+                      className="btn-cart-outline"
+                      style={{ flex: 1, justifyContent: 'center', color: '#ef4444' }}
+                    >
+                      <span>Cancel</span>
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -1116,14 +1209,24 @@ export default function Checkout() {
                     ))}
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={handleCompleteTestPayment}
-                    className="btn-buy-solid"
-                    style={{ width: '100%', justifyContent: 'center' }}
-                  >
-                    Authorize Netbanking Payment
-                  </button>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={handleCompleteTestPayment}
+                      className="btn-buy-solid"
+                      style={{ flex: 1, justifyContent: 'center', background: '#22c55e' }}
+                    >
+                      <span>Authorize Netbanking</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancelPayment}
+                      className="btn-cart-outline"
+                      style={{ flex: 1, justifyContent: 'center', color: '#ef4444' }}
+                    >
+                      <span>Cancel</span>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
