@@ -224,7 +224,24 @@ export default function Checkout() {
 
       setPendingRzpOrder(rzpOrder);
 
-      // Try Razorpay Official Merchant Gateway (Bypasses personal UPI bank limits completely)
+      // 1. If "Google Pay / PhonePe / Paytm (UPI)" is selected -> Directly open Google Pay / UPI app (NO Razorpay popup)
+      if (formData.paymentMethod === 'UPI_APP') {
+        const upiUrl = buildUpiIntentUri('upi');
+        setGeneratedUpiUri(upiUrl);
+
+        try {
+          window.location.href = upiUrl;
+        } catch (err) {
+          console.warn('Direct UPI app launch note:', err);
+        }
+
+        setAwaitingUpiPayment(true);
+        setSubmitting(false);
+        startAutomatedPaymentPolling(rzpOrder.orderId);
+        return;
+      }
+
+      // 2. If Card or QR Code is selected -> Open Razorpay Gateway Modal
       if (window.Razorpay) {
         const options = {
           key: razorpayKey || 'rzp_test_lightinmotion',
@@ -266,7 +283,7 @@ export default function Checkout() {
         return;
       }
 
-      // Fallback: Direct Intent Deep Link
+      // Fallback Intent Launch
       const upiUrl = buildUpiIntentUri('upi');
       setGeneratedUpiUri(upiUrl);
 
